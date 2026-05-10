@@ -63,10 +63,9 @@ pub async fn fetch_disc_page_html(
 pub fn parse_download_links(html: String) -> Result<Vec<DownloadLink>, String> {
     let mut links = Vec::new();
 
-    // 直接在整个 HTML 中搜索所有符合条件的 <a> 标签
+    // 优先解析下拉菜单中的多格式下载链接
     let mut search_start = 0;
     loop {
-        // 查找 <a ... class="dropdown-item" ... href="/albums/download/..."
         let a_start = html[search_start..].find(r#"<a"#);
         if a_start.is_none() {
             break;
@@ -77,42 +76,66 @@ pub fn parse_download_links(html: String) -> Result<Vec<DownloadLink>, String> {
         if a_end.is_none() {
             break;
         }
-        let a_end = a_start + a_end.unwrap() + 4; // include </a>
+        let a_end = a_start + a_end.unwrap() + 4;
 
         let a_tag = &html[a_start..a_end];
 
-        // 检查是否是 dropdown-item 且 href 以 /albums/download/ 开头
         if !a_tag.contains("dropdown-item") {
             search_start = a_end;
             continue;
         }
 
-        // 提取 href
         let href = extract_attribute(a_tag, "href");
-
         if let Some(href) = href {
-            // 只保留 /albums/download/ 开头的链接
             if href.starts_with("/albums/download/") {
                 let full_url = format!("https://www.dizzylab.net{}", href);
-
-                // 提取标签文本（</a> 之前的内容，去掉 HTML 标签）
                 let content_start = a_tag.find('>').map(|i| i + 1).unwrap_or(0);
                 let content = if content_start < a_tag.len() {
-                    let raw = &a_tag[content_start..a_tag.len() - 4]; // before </a>
+                    let raw = &a_tag[content_start..a_tag.len() - 4];
                     let text = raw.split('<').next().unwrap_or("").trim().to_string();
                     text
                 } else {
                     String::new()
                 };
-
                 links.push(DownloadLink {
                     label: content,
                     url: full_url,
                 });
             }
         }
-
         search_start = a_end;
+    }
+
+    // 没有下拉链接时，尝试解析单个下载链接（download_gift）
+    if links.is_empty() {
+        search_start = 0;
+        loop {
+            let a_start = html[search_start..].find(r#"<a"#);
+            if a_start.is_none() {
+                break;
+            }
+            let a_start = search_start + a_start.unwrap();
+
+            let a_end = html[a_start..].find("</a>");
+            if a_end.is_none() {
+                break;
+            }
+            let a_end = a_start + a_end.unwrap() + 4;
+
+            let a_tag = &html[a_start..a_end];
+
+            let href = extract_attribute(a_tag, "href");
+            if let Some(href) = href {
+                if href.starts_with("/albums/download_gift/") {
+                    let full_url = format!("https://www.dizzylab.net{}", href);
+                    links.push(DownloadLink {
+                        label: "下载商品".to_string(),
+                        url: full_url,
+                    });
+                }
+            }
+            search_start = a_end;
+        }
     }
 
     println!("[Download] 解析到 {} 个下载链接", links.len());

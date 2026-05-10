@@ -781,22 +781,38 @@ export async function parseDownloadLinks(html) {
   if (isTauri) {
     return tauriInvoke("parse_download_links", { html });
   }
-  // 非 Tauri 环境：前端解析
   const links = [];
+
+  // 优先解析下拉菜单中的多格式下载链接
   const dropdownMatch = html.match(
-    /<div[^>]*class="[^"]*dropdown-menu[^"]*"[^>]*>([\s\S]*?)<\/div>\s*</i,
+    /<div[^>]*class="[^>]*dropdown-menu[^>]*"[^>]*>([\s\S]*?)<\/div>\s*</i,
   );
-  if (!dropdownMatch) return links;
-  const dropdownHtml = dropdownMatch[1];
-  const itemRegex =
-    /<a[^>]*class="[^"]*dropdown-item[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let match;
-  while ((match = itemRegex.exec(dropdownHtml)) !== null) {
-    const href = match[1];
-    if (href.startsWith("/albums/download/")) {
-      const label = match[2].replace(/<[^>]*>/g, "").trim();
+  if (dropdownMatch) {
+    const dropdownHtml = dropdownMatch[1];
+    const itemRegex =
+      /<a[^>]*class="[^>]*dropdown-item[^>]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = itemRegex.exec(dropdownHtml)) !== null) {
+      const href = match[1];
+      if (href.startsWith("/albums/download/")) {
+        const label = match[2].replace(/<[^>]*>/g, "").trim();
+        links.push({
+          label,
+          url: `https://www.dizzylab.net${href}`,
+        });
+      }
+    }
+  }
+
+  // 没有下拉菜单时，尝试解析单个下载链接（download_gift）
+  if (links.length === 0) {
+    const singleRegex =
+      /<a[^>]*href="(\/albums\/download_gift\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = singleRegex.exec(html)) !== null) {
+      const href = match[1];
       links.push({
-        label,
+        label: "下载商品",
         url: `https://www.dizzylab.net${href}`,
       });
     }
