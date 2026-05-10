@@ -241,18 +241,50 @@ onMounted(() => {
           <div class="settings-list">
             <div class="setting-item" v-if="configLoaded">
               <div class="setting-info">
-                <span class="setting-title">使用 320Kbps 在线播放</span>
-                <span class="setting-desc">这会消耗更多空间和流量</span>
+                <span class="setting-title">使用 320Kbps 在线播放 (Beta)</span>
+                <span class="setting-desc"
+                  >这会消耗更多空间和流量，目前需要清空播放列表并重新添加才能生效</span
+                >
               </div>
               <div class="setting-control">
                 <el-switch v-model="use320kbps" @change="onUse320kbpsChange" />
               </div>
             </div>
 
+            <div v-if="!configLoaded" class="setting-item">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>加载配置中...</span>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <!-- 认证设置 -->
+      <el-tab-pane>
+        <template #label>
+          <span class="tab-label">
+            <el-icon><Setting /></el-icon>
+            <span>认证</span>
+          </span>
+        </template>
+
+        <div class="tab-content">
+          <h3>认证设置</h3>
+          <p>
+            由于缺少 API 的原因，如果需要通过 DizzyPlay 下载已购商品，请登录
+            <a href="https://www.dizzylab.net/albums/login/" target="_blank"
+              >Dizzylab 网页版</a
+            >
+            后使用<code>Ctrl+Shift+I</code>或<code>F12</code>快捷键，选择存储-Cookie并根据以下设置项的介绍填写。
+          </p>
+          <br />
+          <div class="settings-list">
             <div class="setting-item" v-if="configLoaded">
               <div class="setting-info">
                 <span class="setting-title">CSRF Token</span>
-                <span class="setting-desc">用于需要 CSRF 验证的请求</span>
+                <span class="setting-desc"
+                  >用于需要 CSRF 验证的请求 (Cookie: csrftoken)</span
+                >
               </div>
               <div class="setting-control">
                 <el-input
@@ -268,7 +300,9 @@ onMounted(() => {
             <div class="setting-item" v-if="configLoaded">
               <div class="setting-info">
                 <span class="setting-title">Session ID</span>
-                <span class="setting-desc">用于下载认证的会话标识</span>
+                <span class="setting-desc"
+                  >用于下载认证的会话标识 (Cookie: sessionid)</span
+                >
               </div>
               <div class="setting-control">
                 <el-input
