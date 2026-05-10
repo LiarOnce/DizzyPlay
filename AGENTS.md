@@ -87,7 +87,7 @@ DizzyPlay/
 │           └── user_configs.rs # 用户配置读写（config.json）
 │
 └── docs/                       # 文档
-    ├── API_DOCUMENTATION.md    # dizzylab API 文档
+    ├── dizzylab-api-doc.md     # dizzylab API 文档
     ├── html/                   # HTML 响应示例
     └── json/                   # JSON 响应示例
 ```
