@@ -533,9 +533,9 @@ onUnmounted(() => {
             </el-tag>
           </div>
           <div class="album-actions">
-            <!-- 已拥有：添加到播放列表 -->
+            <!-- 已拥有：添加到播放列表（下载商品除外） -->
             <el-button
-              v-if="album.ihavethis"
+              v-if="album.ihavethis && !album.onlyhavegift"
               type="primary"
               :icon="VideoPlay"
               round
@@ -545,7 +545,9 @@ onUnmounted(() => {
             </el-button>
             <!-- 未拥有：onsell=false 显示仅可兑换（不可点击） -->
             <el-button
-              v-else-if="album.onsell === false"
+              v-else-if="
+                album.onsell === false && album.onlyhavegift && !album.ihavethis
+              "
               type="info"
               round
               disabled
@@ -554,7 +556,7 @@ onUnmounted(() => {
             </el-button>
             <!-- 未拥有：免费商品显示兑换 -->
             <el-button
-              v-else-if="album.price === 0"
+              v-else-if="album.price === 0 && !album.onlyhavegift"
               type="warning"
               round
               :loading="redeeming"
@@ -564,7 +566,7 @@ onUnmounted(() => {
             </el-button>
             <!-- 未拥有：跳转到购买页面 -->
             <el-button
-              v-else
+              v-else-if="!album.ihavethis"
               type="danger"
               round
               @click="openInBrowser('https://www.dizzylab.net/d/' + album.id)"
@@ -590,17 +592,16 @@ onUnmounted(() => {
             </el-button>
             <!-- 已拥有：输出元数据 -->
             <MetadataExporter
-              v-if="album.ihavethis"
+              v-if="album.ihavethis && !album.onlyhavegift"
               :disc-id="album.id"
               :album-title="album.title"
             />
-            <!-- <el-button :icon="Share" round>分享</el-button> -->
           </div>
         </div>
       </div>
 
-      <!-- 曲目列表 -->
-      <div class="section">
+      <!-- 曲目列表（下载商品不显示曲目列表） -->
+      <div v-if="!album.onlyhavegift" class="section">
         <h2 class="section-title">曲目列表</h2>
         <div v-if="tracks.length === 0" class="empty-state">
           <el-empty description="暂无曲目信息" />
