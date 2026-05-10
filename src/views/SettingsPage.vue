@@ -314,11 +314,6 @@ onMounted(() => {
                 />
               </div>
             </div>
-
-            <div v-if="!configLoaded" class="setting-item">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>加载配置中...</span>
-            </div>
           </div>
         </div>
       </el-tab-pane>
