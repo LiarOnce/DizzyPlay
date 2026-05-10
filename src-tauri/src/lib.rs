@@ -1,3 +1,5 @@
+#[path = "modules/utils.rs"]
+mod utils;
 #[path = "modules/api.rs"]
 mod api;
 #[path = "modules/cache.rs"]

@@ -33,7 +33,7 @@ const formatOptions = [
 const formatTemplates = {
   eac: "tracks.title - tracks.authors",
   mp3tag: "%title%;%artist%;%album%;%track%;%year%",
-  kid3: '"tracks.id"\\t"tracks.title"\\t"tracks.authors"\\t"title"\\t"YYYY"',
+  kid3: '"?%{track}([^\\r\\n\\t"]*)"?\\t"?%{title}([^\\r\\n\\t"]*)"?\\t"?%{artist}([^\\r\\n\\t"]*)"?\\t"?%{album}([^\\r\\n\\t"]*)"?\\t"?%{year}([^\\r\\n\\t"]*)"',
 };
 
 /**
@@ -71,6 +71,16 @@ async function openDialog() {
   }
 }
 
+function getTrackFields(track) {
+  return {
+    title: track.title || track.name || "",
+    authors: track.authers || "",
+    trackId: track.id || "",
+    album: props.albumTitle,
+    year: releaseYear.value,
+  };
+}
+
 /**
  * Exact Audio Copy 剪贴板
  * tracks.title - tracks.authors
@@ -78,8 +88,7 @@ async function openDialog() {
 function generateEacClipboard() {
   return tracks.value
     .map((track) => {
-      const title = track.title || track.name || "";
-      const authors = track.authers || "";
+      const { title, authors } = getTrackFields(track);
       return `${title} - ${authors}`;
     })
     .join("\n");
@@ -88,35 +97,30 @@ function generateEacClipboard() {
 /**
  * Mp3Tag CSV 格式
  * tracks.title;tracks.authors;title;tracks.id;YYYY
- * 分隔符为 ;
+ * 分隔符为 `;`
  */
+
 function generateMp3TagCsv() {
-  // const header = "Title;Artist;Album;TrackID;Year";
-  const rows = tracks.value.map((track) => {
-    const title = track.title || track.name || "";
-    const authors = track.authers || "";
-    const trackId = track.id || "";
-    return `${title};${authors};${props.albumTitle};${trackId};${releaseYear.value}`;
-  });
-  // return [header, ...rows].join("\n");
-  return [...rows].join("\n");
+  return tracks.value
+    .map((track) => {
+      const { title, authors, album, trackId, year } = getTrackFields(track);
+      return `${title};${authors};${album};${trackId};${year}`;
+    })
+    .join("\n");
 }
 
 /**
  * Kid3 CSV 格式
  * "tracks.id"\t"tracks.title"\t"tracks.authors"\t"title"\t"YYYY"
- * 使用 " 包裹字段，\t 分隔
+ * 使用 `"` 包裹字段，`\t`(制表符)分隔
  */
 function generateKid3Csv() {
-  // const header = '"TrackID"\t"Title"\t"Artist"\t"Album"\t"Year"';
-  const rows = tracks.value.map((track) => {
-    const trackId = track.id || "";
-    const title = track.title || track.name || "";
-    const authors = track.authers || "";
-    return `"${trackId}"\t"${title}"\t"${authors}"\t"${props.albumTitle}"\t"${releaseYear.value}"`;
-  });
-  // return [header, ...rows].join("\n");
-  return [...rows].join("\n");
+  return tracks.value
+    .map((track) => {
+      const { title, authors, album, trackId, year } = getTrackFields(track);
+      return `"${trackId}"\t"${title}"\t"${authors}"\t"${album}"\t"${year}"`;
+    })
+    .join("\n");
 }
 
 /**

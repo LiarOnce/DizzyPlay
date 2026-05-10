@@ -1,15 +1,8 @@
 /// 获取 HTML 内容
 #[tauri::command]
 pub async fn proxy_html_page(url: String) -> Result<String, String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
-        .send()
+    let client = crate::utils::create_dizzylab_client();
+    let response = crate::utils::add_dizzylab_headers(client.get(&url)).send()
         .await
         .map_err(|e| format!("HTML 页面请求失败: {}", e))?;
 

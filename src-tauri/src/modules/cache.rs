@@ -1,56 +1,13 @@
-/// 获取 JSON 数据缓存目录
 fn get_cache_dir() -> Result<std::path::PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-    Ok(exe_dir.join("cache").join("datas"))
+    crate::utils::get_app_subdir("cache/datas")
 }
 
-/// 获取图片缓存目录
 fn get_image_cache_dir() -> Result<std::path::PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-    Ok(exe_dir.join("cache").join("images"))
+    crate::utils::get_app_subdir("cache/images")
 }
 
-/// 获取音乐缓存目录
 fn get_music_cache_dir() -> Result<std::path::PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-    Ok(exe_dir.join("cache").join("music"))
-}
-
-// ─── 辅助函数 ───────────────────────────────────────────────
-
-/// 将 URL 转换为安全的文件名（使用哈希值）
-fn url_to_filename(url: &str) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    url.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
-}
-
-/// 根据 URL 推断图片扩展名
-fn guess_extension(url: &str) -> &'static str {
-    let url_lower = url.to_lowercase();
-    if url_lower.contains(".png") {
-        ".png"
-    } else if url_lower.contains(".gif") {
-        ".gif"
-    } else if url_lower.contains(".webp") {
-        ".webp"
-    } else if url_lower.contains(".bmp") {
-        ".bmp"
-    } else if url_lower.contains(".svg") {
-        ".svg"
-    } else {
-        ".jpg"
-    }
+    crate::utils::get_app_subdir("cache/music")
 }
 
 // ─── JSON 数据缓存 ──────────────────────────────────────────
@@ -153,8 +110,8 @@ pub fn save_image_cache(url: String, data: Vec<u8>) -> Result<String, String> {
 
     std::fs::create_dir_all(&img_cache_dir).map_err(|e| format!("创建图片缓存目录失败: {}", e))?;
 
-    let filename = url_to_filename(&url);
-    let ext = guess_extension(&url);
+    let filename = crate::utils::url_to_filename(&url);
+    let ext = crate::utils::guess_extension(&url);
     let file_path = img_cache_dir.join(format!("{}{}", filename, ext));
 
     std::fs::write(&file_path, &data).map_err(|e| format!("写入图片缓存文件失败: {}", e))?;
@@ -169,8 +126,8 @@ pub fn save_image_cache(url: String, data: Vec<u8>) -> Result<String, String> {
 pub fn load_image_cache(url: String, max_age_secs: u64) -> Result<String, String> {
     let img_cache_dir = get_image_cache_dir()?;
 
-    let filename = url_to_filename(&url);
-    let ext = guess_extension(&url);
+    let filename = crate::utils::url_to_filename(&url);
+    let ext = crate::utils::guess_extension(&url);
     let file_path = img_cache_dir.join(format!("{}{}", filename, ext));
 
     if !file_path.exists() {
@@ -212,7 +169,7 @@ pub fn load_image_cache(url: String, max_age_secs: u64) -> Result<String, String
 pub fn load_music_cache(url: String) -> Result<String, String> {
     let music_cache_dir = get_music_cache_dir()?;
 
-    let filename = url_to_filename(&url);
+    let filename = crate::utils::url_to_filename(&url);
     let file_path = music_cache_dir.join(format!("{}.mp3", filename));
 
     if !file_path.exists() {

@@ -14,12 +14,7 @@ import {
   downloadManager,
   DownloadStatus,
 } from "../services/downloadManager.js";
-
-// ===== 检测 Tauri 环境 =====
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
+import { formatSize, isTauri } from "../utils/format.js";
 
 // ===== 响应式任务列表（从全局管理器同步） =====
 const downloadTasks = ref([]);
@@ -107,18 +102,6 @@ const statusClass = computed(() => {
   };
   return (s) => map[s] || "";
 });
-
-/**
- * 格式化文件大小
- */
-function formatSize(bytes) {
-  if (!bytes || bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const size = (bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0);
-  return size + " " + units[i];
-}
 
 // ===== 生命周期 =====
 let unsubUpdate = null;

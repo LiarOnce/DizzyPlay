@@ -40,16 +40,8 @@ pub async fn proxy_api_get(
         }
     }
 
-    // 发送 GET 请求
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
-        .send()
+    let client = crate::utils::create_dizzylab_client();
+    let response = crate::utils::add_dizzylab_headers(client.get(&url)).send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
 
@@ -73,15 +65,9 @@ pub async fn proxy_api_post(
     let base_url = "https://www.dizzylab.net/apis/";
     let url = format!("{}{}/", base_url, endpoint);
 
-    let client = reqwest::Client::new();
-    let response = client
-        .post(&url)
+    let client = crate::utils::create_dizzylab_client();
+    let response = crate::utils::add_dizzylab_headers(client.post(&url))
         .header("Content-Type", &content_type)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
         .body(body)
         .send()
         .await
@@ -103,14 +89,8 @@ pub async fn proxy_api_post(
 /// 解决 cdn.dizzylab.net 的防盗链问题
 #[tauri::command]
 pub async fn proxy_image(url: String) -> Result<ImageProxyResponse, String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
+    let client = crate::utils::create_dizzylab_client();
+    let response = crate::utils::add_dizzylab_headers(client.get(&url))
         .send()
         .await
         .map_err(|e| format!("图片请求失败: {}", e))?;
@@ -145,14 +125,12 @@ pub async fn proxy_image(url: String) -> Result<ImageProxyResponse, String> {
 /// 返回保存的文件路径
 #[tauri::command]
 pub async fn save_music_cache(url: String) -> Result<String, String> {
-    let music_cache_dir = get_music_cache_dir()?;
+    let music_cache_dir = crate::utils::get_app_subdir("cache/music")?;
 
-    // 创建 cache/music 目录
     std::fs::create_dir_all(&music_cache_dir)
         .map_err(|e| format!("创建音乐缓存目录失败: {}", e))?;
 
-    // 使用 URL 的哈希值作为文件名
-    let filename = url_to_filename(&url);
+    let filename = crate::utils::url_to_filename(&url);
     let file_path = music_cache_dir.join(format!("{}.mp3", filename));
 
     // 如果文件已存在，直接返回路径
@@ -160,16 +138,12 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
         return Ok(file_path.to_string_lossy().to_string());
     }
 
-    // 下载音乐文件
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let response = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .send()
+    let response = crate::utils::add_dizzylab_headers(client.get(&url)).send()
         .await
         .map_err(|e| format!("下载音乐文件失败: {}", e))?;
 
@@ -186,20 +160,3 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
 }
 
 // ─── 辅助函数 ───────────────────────────────────────────────
-
-/// 获取音乐缓存目录
-fn get_music_cache_dir() -> Result<std::path::PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-    Ok(exe_dir.join("cache").join("music"))
-}
-
-/// 将 URL 转换为安全的文件名（使用哈希值）
-fn url_to_filename(url: &str) -> String {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    url.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
-}

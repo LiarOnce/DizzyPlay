@@ -1,8 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch, reactive } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-
-defineOptions({ name: "DiscList" });
 import { VideoPlay, Headset, Loading } from "@element-plus/icons-vue";
 import {
   getDiscs,
@@ -10,15 +8,17 @@ import {
   getMyLikes,
   getMyFollowing,
   getLabels,
-  getTags,
   getCoverUrl,
-  getCachedCoverUrl,
   saveCache,
   loadCache,
   clearCache,
 } from "../services/api.js";
-
 import { globalOffsets } from "../globalvar.js";
+import { usePagination } from "../composables/usePagination.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
+import { useAppRefresh } from "../composables/useAppRefresh.js";
+
+defineOptions({ name: "DiscList" });
 
 const route = useRoute();
 const router = useRouter();
@@ -28,151 +28,55 @@ const loading = ref(true);
 const error = ref("");
 const pageTitle = ref("");
 
-// 图片缓存映射
-const coverCache = reactive({});
-
-// 用于去重，避免同一张图片被重复发起缓存请求
-const pendingCovers = new Set();
-
-// ===== 分页状态 =====
-const pageSize = 20;
-const currentPage = ref(1);
-
-const paginatedDiscs = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return discs.value.slice(start, start + pageSize);
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(discs.value.length / pageSize) || 1;
-});
-
-function handlePageChange(page) {
-  currentPage.value = page;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-// 监听分页变化，自动缓存新页面的封面
-watch(
-  paginatedDiscs,
-  (newItems) => {
-    if (newItems && newItems.length > 0) {
-      cacheVisibleCovers(newItems);
-    }
-  },
-  { immediate: false },
-);
-
-// 根据路由路径确定要加载的数据
-const pageConfig = computed(() => {
-  const path = route.path;
-  switch (path) {
-    case "/playlists":
-      return {
-        title: "全部专辑",
-        fetcher: () => getDiscs({ l: 0, r: globalOffsets, sort: "ad" }),
-      };
-    case "/ep":
-      return {
-        title: "单曲 EP",
-        fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "ep" }),
-      };
-    case "/dig":
-      return {
-        title: "下载商品",
-        fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "dig" }),
-      };
-    case "/label":
-      return {
-        title: "社团",
-        fetcher: () => getLabels({ l: 0, r: globalOffsets }),
-      };
-    case "/purchased":
-      return {
-        title: "已购音乐",
-        fetcher: () => getMyDiscs({ l: 0, r: globalOffsets }),
-      };
-    case "/favorites":
-      return {
-        title: "我的收藏",
-        fetcher: () => getMyLikes({ l: 0, r: globalOffsets }),
-      };
-    case "/following":
-      return {
-        title: "我的关注",
-        fetcher: () => getMyFollowing({ l: 0, r: globalOffsets }),
-      };
-    default:
-      return {
-        title: "浏览",
-        fetcher: () => getDiscs({ l: 0, r: globalOffsets }),
-      };
-  }
-});
-
-/**
- * 仅缓存当前分页可见的封面
- */
-async function cacheVisibleCovers(items) {
-  if (!items || items.length === 0) return;
-  const tasks = [];
-  for (const item of items) {
-    const cover = item.cover || item.labelcover;
-    if (cover) {
-      const key = `item_${item.id || item.labelid || item.uid}`;
-      // 如果已有缓存或正在请求中，跳过
-      if (coverCache[key] || pendingCovers.has(key)) continue;
-      pendingCovers.add(key);
-      tasks.push(
-        getCachedCoverUrl(cover)
-          .then((url) => {
-            coverCache[key] = url;
-            pendingCovers.delete(key);
-          })
-          .catch(() => {
-            pendingCovers.delete(key);
-          }),
-      );
-    }
-  }
-  if (tasks.length > 0) {
-    await Promise.allSettled(tasks);
-    console.log(`[DiscList] 当前分页封面缓存完成: ${tasks.length} 张`);
-  }
-}
+const { paginatedItems: paginatedDiscs, currentPage, totalPages, pageSize, handlePageChange, resetPage } = usePagination(discs);
+const { cacheVisibleCovers, getCover } = useCoverCache("item");
 
 function getItemCover(item) {
-  const key = `item_${item.id || item.labelid || item.uid}`;
-  return coverCache[key] || getCoverUrl(item.cover || item.labelcover);
+  return getCover(item, {
+    coverField: (i) => i.cover || i.labelcover,
+    idField: (i) => i.id || i.labelid || i.uid,
+  });
 }
+
+watch(paginatedDiscs, (newItems) => {
+  if (newItems?.length > 0) {
+    cacheVisibleCovers(newItems, {
+      coverField: (i) => i.cover || i.labelcover,
+      idField: (i) => i.id || i.labelid || i.uid,
+      logLabel: "DiscList",
+    });
+  }
+});
+
+const pageConfig = {
+  "/playlists": { title: "全部专辑", fetcher: () => getDiscs({ l: 0, r: globalOffsets, sort: "ad" }) },
+  "/ep": { title: "单曲 EP", fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "ep" }) },
+  "/dig": { title: "下载商品", fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "dig" }) },
+  "/label": { title: "社团", fetcher: () => getLabels({ l: 0, r: globalOffsets }) },
+  "/purchased": { title: "已购音乐", fetcher: () => getMyDiscs({ l: 0, r: globalOffsets }) },
+  "/favorites": { title: "我的收藏", fetcher: () => getMyLikes({ l: 0, r: globalOffsets }) },
+  "/following": { title: "我的关注", fetcher: () => getMyFollowing({ l: 0, r: globalOffsets }) },
+};
+
+const listPaths = Object.keys(pageConfig);
 
 async function loadData() {
   loading.value = true;
   error.value = "";
-  pageTitle.value = pageConfig.value.title;
+  const cfg = pageConfig[route.path] || pageConfig["/playlists"];
+  pageTitle.value = cfg.title;
   const cacheKey = `discs_${route.path}`;
 
-  // 尝试从缓存加载
   const cachedData = await loadCache(cacheKey);
   if (cachedData) {
     discs.value = cachedData;
     loading.value = false;
-    console.log(`[DiscList] 使用缓存数据: ${route.path}`, discs.value.length);
     return;
   }
 
   try {
-    const data = await pageConfig.value.fetcher();
-    if (data?.discs) {
-      discs.value = data.discs;
-    } else if (data?.labels) {
-      discs.value = data.labels;
-    } else if (data?.following) {
-      discs.value = data.following;
-    } else {
-      discs.value = [];
-    }
-    // 保存到缓存
+    const data = await cfg.fetcher();
+    discs.value = data?.discs || data?.labels || data?.following || [];
     saveCache(cacheKey, discs.value);
   } catch (err) {
     console.error("加载数据失败:", err);
@@ -183,63 +87,31 @@ async function loadData() {
 }
 
 function viewItem(item) {
-  if (route.path === "/label") {
-    if (item.labelid) {
-      router.push(`/label/${item.labelid}`);
-    }
+  if (route.path === "/label" && item.labelid) {
+    router.push(`/label/${item.labelid}`);
   } else if (item.id) {
     router.push(`/album/${item.id}`);
   }
 }
 
-// 需要缓存的列表页路径
-const listPaths = [
-  "/playlists",
-  "/ep",
-  "/dig",
-  "/label",
-  "/purchased",
-  "/favorites",
-  "/following",
-];
-
-// 监听全局刷新事件：清除缓存并重新加载
-let refreshHandler = null;
-
-onMounted(() => {
-  currentPage.value = 1;
+useAppRefresh(async () => {
+  const cacheKey = `discs_${route.path}`;
+  await clearCache(cacheKey);
+  resetPage();
   loadData();
-  // 注册全局刷新事件监听
-  refreshHandler = async () => {
-    console.log(`[DiscList] 收到刷新事件，清除缓存并重新加载: ${route.path}`);
-    const cacheKey = `discs_${route.path}`;
-    await clearCache(cacheKey);
-    currentPage.value = 1;
-    loadData();
-  };
-  window.addEventListener("app-refresh", refreshHandler);
 });
 
-onUnmounted(() => {
-  if (refreshHandler) {
-    window.removeEventListener("app-refresh", refreshHandler);
-    refreshHandler = null;
-  }
-});
-
-// 监听路由变化，进入列表页时重新加载数据
-// 从详情页返回时，使用缓存数据（不清除缓存），保持分页
 watch(
   () => route.path,
-  (newPath, oldPath) => {
-    if (!newPath) return;
-    // 进入列表页时重新加载（包括从非列表页跳转过来）
-    if (listPaths.includes(newPath)) {
-      currentPage.value = 1;
+  (newPath) => {
+    if (newPath && listPaths.includes(newPath)) {
+      resetPage();
       loadData();
     }
   },
 );
+
+loadData();
 </script>
 
 <template>

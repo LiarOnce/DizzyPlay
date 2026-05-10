@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
@@ -14,12 +14,16 @@ import {
   getCachedCoverUrl,
   saveCache,
   loadCache,
+  clearCache,
 } from "../services/api.js";
 import {
   fetchUserPageHtml,
   parseUserPageDiscs,
 } from "../services/htmlParser.js";
 import { globalOffsets } from "../globalvar.js";
+import { usePagination } from "../composables/usePagination.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
+import { useAppRefresh } from "../composables/useAppRefresh.js";
 
 defineOptions({ name: "UserDetail" });
 
@@ -30,188 +34,75 @@ const loading = ref(true);
 const error = ref("");
 const userInfo = ref(null);
 
-// Tab 数据
 const activeTab = ref("purchased");
-const tabDiscs = reactive({
-  purchased: [],
-  review: [],
-  following: [],
-  likes: [],
-});
-const tabLoading = reactive({
-  purchased: false,
-  review: false,
-  following: false,
-  likes: false,
-});
-const tabLoaded = reactive({
-  purchased: false,
-  review: false,
-  following: false,
-  likes: false,
-});
-
-// 图片缓存映射
-const coverCache = reactive({});
-const pendingCovers = new Set();
-
-// 用户头像缓存
+const tabDiscs = reactive({ purchased: [], review: [], following: [], likes: [] });
+const tabLoading = reactive({ purchased: false, review: false, following: false, likes: false });
+const tabLoaded = reactive({ purchased: false, review: false, following: false, likes: false });
 const userAvatarUrl = ref("");
 
-// ===== 分页状态 =====
-const pageSize = 20;
-const currentPage = ref(1);
+const currentDiscs = computed(() => tabDiscs[activeTab.value] || []);
+const { paginatedItems: paginatedDiscs, currentPage, totalPages, pageSize, handlePageChange, resetPage } = usePagination(currentDiscs);
+const { cacheVisibleCovers, getCover: getDiscCover } = useCoverCache("disc");
 
-const currentDiscs = computed(() => {
-  return tabDiscs[activeTab.value] || [];
-});
+watch(paginatedDiscs, (newItems) => {
+  if (newItems?.length > 0) cacheVisibleCovers(newItems);
+}, { immediate: true });
 
-const paginatedDiscs = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return currentDiscs.value.slice(start, start + pageSize);
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(currentDiscs.value.length / pageSize) || 1;
-});
-
-function handlePageChange(page) {
-  currentPage.value = page;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-/**
- * 缓存当前分页可见的封面
- */
-async function cacheVisibleCovers(items) {
-  if (!items || items.length === 0) return;
-  const tasks = [];
-  for (const item of items) {
-    const cover = item.cover;
-    if (cover) {
-      const key = `disc_${item.id}`;
-      if (coverCache[key] || pendingCovers.has(key)) continue;
-      pendingCovers.add(key);
-      tasks.push(
-        getCachedCoverUrl(cover)
-          .then((url) => {
-            coverCache[key] = url;
-            pendingCovers.delete(key);
-          })
-          .catch(() => {
-            pendingCovers.delete(key);
-          }),
-      );
-    }
-  }
-  if (tasks.length > 0) {
-    await Promise.allSettled(tasks);
-  }
-}
-
-function getDiscCover(item) {
-  const key = `disc_${item.id}`;
-  return coverCache[key] || getCoverUrl(item.cover);
-}
-
-/**
- * 查看详情（专辑或社团）
- */
 function viewDisc(item) {
-  if (!item.id) return;
-  if (activeTab.value === "following") {
-    // API 接口不支持发送 string，无法获得 labelid
-    // 对此将不对用户的关注页面提供跳转
-    //router.push(`/label/${item.id}`);
-    return;
-  } else {
-    router.push(`/album/${item.id}`);
-  }
+  if (!item.id || activeTab.value === "following") return;
+  router.push(`/album/${item.id}`);
 }
 
-/**
- * 返回上一页
- */
-function goBack() {
-  router.back();
-}
+function goBack() { router.back(); }
 
-/**
- * 从已购缓存恢复数据
- */
 async function restorePurchasedFromCache(uid) {
   if (tabLoaded.purchased) return;
-  const purchasedCache = await loadCache(`user_purchased_${uid}`);
-  if (purchasedCache && purchasedCache.length > 0) {
-    tabDiscs.purchased = purchasedCache;
-    tabLoaded.purchased = true;
-  }
+  const cached = await loadCache(`user_purchased_${uid}`);
+  if (cached?.length > 0) { tabDiscs.purchased = cached; tabLoaded.purchased = true; }
 }
 
-/**
- * 缓存用户头像
- */
 function cacheUserAvatar(cover) {
-  if (cover) {
-    getCachedCoverUrl(cover).then((url) => {
-      userAvatarUrl.value = url;
-    });
-  }
+  if (cover) getCachedCoverUrl(cover).then((url) => { userAvatarUrl.value = url; });
 }
 
-/**
- * 加载用户基本信息
- */
+function resetTabs() {
+  const tabs = ["purchased", "review", "following", "likes"];
+  tabs.forEach((t) => { tabLoaded[t] = false; tabDiscs[t] = []; });
+}
+
 async function loadUserDetail() {
   const uid = route.params.id;
-  if (!uid) {
-    error.value = "缺少用户 ID";
-    loading.value = false;
-    return;
-  }
+  if (!uid) { error.value = "缺少用户 ID"; loading.value = false; return; }
 
   error.value = "";
   const cacheKey = `user_detail_${uid}`;
-
-  // 尝试从缓存加载
   const cachedData = await loadCache(cacheKey);
-  if (cachedData) {
-    // 如果已有用户数据（组件复用场景），直接恢复
-    if (userInfo.value) {
-      await restorePurchasedFromCache(uid);
-      return;
-    }
 
+  if (cachedData) {
+    if (userInfo.value) { await restorePurchasedFromCache(uid); return; }
     loading.value = true;
     userInfo.value = cachedData.user;
     cacheUserAvatar(userInfo.value?.cover);
     await restorePurchasedFromCache(uid);
     loading.value = false;
-    console.log(`[UserDetail] 使用缓存数据: ${uid}`);
     return;
   }
 
   loading.value = true;
-
   try {
     const data = await getOtherUserInfo(uid, { l: 0, r: globalOffsets });
-    console.log(`[UserDetail] 获取到数据:`, data);
     userInfo.value = data.user;
     cacheUserAvatar(userInfo.value?.cover);
-    // 从同一响应中提取已购列表并缓存
-    if (data.discs && data.discs.length > 0) {
+    if (data.discs?.length > 0) {
       tabDiscs.purchased = data.discs;
       tabLoaded.purchased = true;
       saveCache(`user_purchased_${uid}`, data.discs);
     }
-    // 保存用户信息到缓存
     saveCache(cacheKey, data);
   } catch (err) {
     console.error("加载用户详情失败:", err);
     error.value = "加载失败，请检查网络连接";
-  } finally {
-    loading.value = false;
-  }
+  } finally { loading.value = false; }
 }
 
 /**
@@ -221,7 +112,6 @@ async function loadHtmlTab(tabType) {
   const uid = route.params.id;
   if (tabLoaded[tabType] || tabLoading[tabType]) return;
   tabLoading[tabType] = true;
-
   const cacheKey = `user_${tabType}_${uid}`;
   const cached = await loadCache(cacheKey);
   if (cached) {
@@ -230,115 +120,44 @@ async function loadHtmlTab(tabType) {
     tabLoading[tabType] = false;
     return;
   }
-
   try {
     const html = await fetchUserPageHtml(uid, tabType);
-    const discs = parseUserPageDiscs(html);
-    tabDiscs[tabType] = discs;
-    saveCache(cacheKey, discs);
-  } catch (err) {
-    console.error(`[UserDetail] 加载 ${tabType} 失败:`, err);
-  } finally {
-    tabLoaded[tabType] = true;
-    tabLoading[tabType] = false;
-  }
+    tabDiscs[tabType] = parseUserPageDiscs(html);
+    saveCache(cacheKey, tabDiscs[tabType]);
+  } catch (err) { console.error(`[UserDetail] 加载 ${tabType} 失败:`, err); }
+  finally { tabLoaded[tabType] = true; tabLoading[tabType] = false; }
 }
 
-/**
- * Tab 切换处理
- */
 function handleTabChange(tab) {
-  currentPage.value = 1;
-  if (tab === "purchased") {
-    // 已购数据已在 loadUserDetail 中通过 API 获取并缓存，只需从缓存恢复
-    restorePurchasedFromCache(route.params.id);
-  } else {
-    loadHtmlTab(tab);
-  }
+  resetPage();
+  if (tab === "purchased") restorePurchasedFromCache(route.params.id);
+  else loadHtmlTab(tab);
 }
 
-// 监听分页变化，自动缓存新页面的封面
-watch(
-  paginatedDiscs,
-  (newItems) => {
-    if (newItems && newItems.length > 0) {
-      cacheVisibleCovers(newItems);
-    }
-  },
-  { immediate: true },
-);
-
-let refreshHandler = null;
-
-onMounted(() => {
-  loadUserDetail();
-  refreshHandler = async () => {
-    console.log("[UserDetail] 收到刷新事件，清除所有缓存并重新加载");
-    const uid = route.params.id;
-    // 清除所有用户相关的 JSON 缓存
-    try {
-      const { clearCache } = await import("../services/api.js");
-      const cacheKeys = [
-        `user_detail_${uid}`,
-        `user_purchased_${uid}`,
-        `user_review_${uid}`,
-        `user_following_${uid}`,
-        `user_likes_${uid}`,
-      ];
-      for (const key of cacheKeys) {
-        await clearCache(key);
-      }
-    } catch (e) {
-      console.log("[UserDetail] 清除缓存失败，重新加载");
-    }
-    // 重置所有 tab 的加载状态
-    tabLoaded.purchased = false;
-    tabLoaded.review = false;
-    tabLoaded.following = false;
-    tabLoaded.likes = false;
-    tabDiscs.purchased = [];
-    tabDiscs.review = [];
-    tabDiscs.following = [];
-    tabDiscs.likes = [];
-    // 重置分页
-    currentPage.value = 1;
-    // 重新加载用户信息
-    loadUserDetail().then(() => {
-      if (activeTab.value !== "purchased") {
-        loadHtmlTab(activeTab.value);
-      }
-    });
-  };
-  window.addEventListener("app-refresh", refreshHandler);
+useAppRefresh(async () => {
+  const uid = route.params.id;
+  const cacheKeys = [`user_detail_${uid}`, `user_purchased_${uid}`, `user_review_${uid}`, `user_following_${uid}`, `user_likes_${uid}`];
+  await Promise.allSettled(cacheKeys.map((k) => clearCache(k)));
+  resetTabs();
+  resetPage();
+  loadUserDetail().then(() => {
+    if (activeTab.value !== "purchased") loadHtmlTab(activeTab.value);
+  });
 });
 
-// 监听路由参数变化
 watch(
   () => route.params.id,
   (newId, oldId) => {
     if (newId && newId !== oldId) {
-      // 重置所有 tab 加载状态
-      tabLoaded.purchased = false;
-      tabLoaded.review = false;
-      tabLoaded.following = false;
-      tabLoaded.likes = false;
-      tabDiscs.purchased = [];
-      tabDiscs.review = [];
-      tabDiscs.following = [];
-      tabDiscs.likes = [];
-      currentPage.value = 1;
+      resetTabs();
+      resetPage();
       activeTab.value = "purchased";
       loadUserDetail();
     }
   },
 );
 
-onUnmounted(() => {
-  if (refreshHandler) {
-    window.removeEventListener("app-refresh", refreshHandler);
-    refreshHandler = null;
-  }
-});
+loadUserDetail();
 </script>
 
 <template>

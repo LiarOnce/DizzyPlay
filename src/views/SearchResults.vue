@@ -1,9 +1,11 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, reactive } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Headset, Loading } from "@element-plus/icons-vue";
-import { search, getCoverUrl, getCachedCoverUrl } from "../services/api.js";
+import { search, getCoverUrl } from "../services/api.js";
 import { globalOffsets } from "../globalvar.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
+import { useAppRefresh } from "../composables/useAppRefresh.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -13,86 +15,38 @@ const results = ref([]);
 const loading = ref(false);
 const error = ref("");
 
-// 图片缓存映射
-const coverCache = reactive({});
+const { cacheVisibleCovers, getCover: getResultCover } = useCoverCache("result");
 
 async function doSearch(keyword) {
-  if (!keyword || !keyword.trim()) {
-    results.value = [];
-    return;
-  }
+  if (!keyword?.trim()) { results.value = []; return; }
   loading.value = true;
   error.value = "";
   try {
     const data = await search(keyword, { l: 0, r: globalOffsets });
-    if (data?.discs) {
-      results.value = data.discs;
-      // 预加载封面缓存
-      const tasks = [];
-      for (const album of results.value) {
-        if (album.cover) {
-          const key = `result_${album.id}`;
-          tasks.push(
-            getCachedCoverUrl(album.cover).then((url) => {
-              coverCache[key] = url;
-            }),
-          );
-        }
-      }
-      await Promise.allSettled(tasks);
-      console.log("[SearchResults] 封面预加载完成");
-    } else {
-      results.value = [];
-    }
+    results.value = data?.discs || [];
+    await cacheVisibleCovers(results.value, { logLabel: "SearchResults" });
   } catch (err) {
     console.error("搜索失败:", err);
     error.value = "搜索失败，请检查网络连接";
-  } finally {
-    loading.value = false;
-  }
-}
-
-function getResultCover(album) {
-  return coverCache[`result_${album.id}`] || getCoverUrl(album.cover);
+  } finally { loading.value = false; }
 }
 
 function viewAlbum(album) {
   router.push(`/album/${album.id}`);
 }
 
-// 监听路由参数变化
-watch(
-  () => route.query.q,
-  (newQ) => {
-    if (newQ) {
-      query.value = newQ;
-      doSearch(newQ);
-    }
-  },
-);
-
-let refreshHandler = null;
-
-onMounted(() => {
-  if (route.query.q) {
-    query.value = route.query.q;
-    doSearch(route.query.q);
-  }
-  refreshHandler = async () => {
-    console.log("[SearchResults] 收到刷新事件，重新搜索");
-    if (query.value && query.value.trim()) {
-      doSearch(query.value);
-    }
-  };
-  window.addEventListener("app-refresh", refreshHandler);
+watch(() => route.query.q, (newQ) => {
+  if (newQ) { query.value = newQ; doSearch(newQ); }
 });
 
-onUnmounted(() => {
-  if (refreshHandler) {
-    window.removeEventListener("app-refresh", refreshHandler);
-    refreshHandler = null;
-  }
+useAppRefresh(async () => {
+  if (query.value?.trim()) doSearch(query.value);
 });
+
+if (route.query.q) {
+  query.value = route.query.q;
+  doSearch(route.query.q);
+}
 </script>
 
 <template>

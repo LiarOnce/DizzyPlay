@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, reactive, watch } from "vue";
+import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { VideoPlay, Headset, Loading } from "@element-plus/icons-vue";
 import {
@@ -11,8 +11,10 @@ import {
   loadCache,
   clearCache,
 } from "../services/api.js";
-
 import { globalOffsets } from "../globalvar.js";
+import { usePagination } from "../composables/usePagination.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
+import { useAppRefresh } from "../composables/useAppRefresh.js";
 
 defineOptions({ name: "HomePage" });
 
@@ -23,63 +25,9 @@ const loading = ref(true);
 const error = ref("");
 const banners = ref([]);
 
-// 图片缓存映射：key = album.id 或 banner index, value = 缓存的图片 URL
-const coverCache = reactive({});
+const { paginatedItems: paginatedAlbums, currentPage, totalPages, pageSize, handlePageChange, resetPage } = usePagination(digitalAlbums);
+const { coverCache, cacheVisibleCovers, getCover } = useCoverCache("album");
 
-// 用于去重，避免同一张图片被重复发起缓存请求
-const pendingCovers = new Set();
-
-// ===== 分页状态 =====
-const pageSize = 20;
-const currentPage = ref(1);
-
-const paginatedAlbums = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return digitalAlbums.value.slice(start, start + pageSize);
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(digitalAlbums.value.length / pageSize) || 1;
-});
-
-function handlePageChange(page) {
-  currentPage.value = page;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-/**
- * 仅缓存当前分页可见的专辑封面
- */
-async function cacheVisibleCovers(albums) {
-  if (!albums || albums.length === 0) return;
-  const tasks = [];
-  for (const album of albums) {
-    if (album.cover) {
-      const key = `album_${album.id}`;
-      // 如果已有缓存或正在请求中，跳过
-      if (coverCache[key] || pendingCovers.has(key)) continue;
-      pendingCovers.add(key);
-      tasks.push(
-        getCachedCoverUrl(album.cover)
-          .then((url) => {
-            coverCache[key] = url;
-            pendingCovers.delete(key);
-          })
-          .catch(() => {
-            pendingCovers.delete(key);
-          }),
-      );
-    }
-  }
-  if (tasks.length > 0) {
-    await Promise.allSettled(tasks);
-    console.log(`[HomePage] 当前分页封面缓存完成: ${tasks.length} 张`);
-  }
-}
-
-/**
- * 缓存轮播图封面
- */
 async function cacheBannerCovers(bannerList) {
   if (!bannerList || bannerList.length === 0) return;
   const tasks = [];
@@ -87,17 +35,11 @@ async function cacheBannerCovers(bannerList) {
     const cover = bannerList[i].cover || bannerList[i];
     if (cover) {
       const key = `banner_${i}`;
-      if (coverCache[key] || pendingCovers.has(key)) continue;
-      pendingCovers.add(key);
+      if (coverCache[key]) continue;
       tasks.push(
         getCachedCoverUrl(cover)
-          .then((url) => {
-            coverCache[key] = url;
-            pendingCovers.delete(key);
-          })
-          .catch(() => {
-            pendingCovers.delete(key);
-          }),
+          .then((url) => { coverCache[key] = url; })
+          .catch(() => {}),
       );
     }
   }
@@ -107,40 +49,24 @@ async function cacheBannerCovers(bannerList) {
   }
 }
 
-// 监听分页变化，自动缓存新页面的封面
-watch(
-  paginatedAlbums,
-  (newAlbums) => {
-    if (newAlbums && newAlbums.length > 0) {
-      cacheVisibleCovers(newAlbums);
-    }
-  },
-  { immediate: false },
-);
+watch(paginatedAlbums, (newItems) => {
+  if (newItems?.length > 0) {
+    cacheVisibleCovers(newItems, { logLabel: "HomePage" });
+  }
+});
 
-// 加载首页数据，优先使用缓存
 async function loadHomeData() {
   loading.value = true;
   error.value = "";
-  currentPage.value = 1;
-  console.log("[HomePage] 开始加载首页数据...");
+  resetPage();
 
-  // 尝试从缓存加载
   const cachedData = await loadCache("homepage_discs");
   const cachedBanners = await loadCache("homepage_banners");
-  if (cachedData) {
-    digitalAlbums.value = cachedData;
-    console.log("[HomePage] 使用缓存数据:", digitalAlbums.value.length);
-  }
-  if (cachedBanners) {
-    banners.value = cachedBanners;
-    console.log("[HomePage] 使用缓存封面:", banners.value.length);
-  }
+  if (cachedData) digitalAlbums.value = cachedData;
+  if (cachedBanners) banners.value = cachedBanners;
   if (cachedData && cachedBanners) {
-    // 缓存轮播图封面，直到等待完成，确保首次渲染时封面可见
     await cacheBannerCovers(cachedBanners);
     loading.value = false;
-    console.log("[HomePage] 缓存命中，跳过 API 请求");
     return;
   }
 
@@ -150,33 +76,16 @@ async function loadHomeData() {
       getSomeCover({ l: 0, r: 6 }),
     ]);
 
-    console.log("[HomePage] discsData result:", discsDataResult.status);
-    console.log("[HomePage] coverData result:", coverDataResult.status);
-
-    if (
-      discsDataResult.status === "fulfilled" &&
-      discsDataResult.value?.discs
-    ) {
+    if (discsDataResult.status === "fulfilled" && discsDataResult.value?.discs) {
       digitalAlbums.value = discsDataResult.value.discs;
-      // 保存到缓存
       saveCache("homepage_discs", digitalAlbums.value);
-      console.log(
-        "[HomePage] API 唱片列表加载成功:",
-        digitalAlbums.value.length,
-      );
     } else if (!cachedData) {
-      console.warn("[HomePage] 获取唱片列表失败，使用空数据");
       digitalAlbums.value = [];
     }
 
-    if (
-      coverDataResult.status === "fulfilled" &&
-      coverDataResult.value?.covers
-    ) {
+    if (coverDataResult.status === "fulfilled" && coverDataResult.value?.covers) {
       banners.value = coverDataResult.value.covers;
-      // 保存到缓存
       saveCache("homepage_banners", banners.value);
-      console.log("[HomePage] API 封面加载成功:", banners.value.length);
     }
   } catch (err) {
     console.error("[HomePage] 加载首页数据失败:", err);
@@ -186,17 +95,11 @@ async function loadHomeData() {
   } finally {
     await cacheBannerCovers(banners.value);
     loading.value = false;
-    console.log(
-      "[HomePage] 加载完成, albums:",
-      digitalAlbums.value.length,
-      "banners:",
-      banners.value.length,
-    );
   }
 }
 
 function getAlbumCover(album) {
-  return coverCache[`album_${album.id}`] || getCoverUrl(album.cover);
+  return getCover(album);
 }
 
 function getBannerCover(cover, index) {
@@ -207,27 +110,13 @@ function viewAlbum(album) {
   router.push(`/album/${album.id}`);
 }
 
-// 监听全局刷新事件：清除缓存并重新加载
-let refreshHandler = null;
-
-onMounted(() => {
+useAppRefresh(async () => {
+  await clearCache("homepage_discs");
+  await clearCache("homepage_banners");
   loadHomeData();
-  // 注册全局刷新事件监听
-  refreshHandler = async () => {
-    console.log("[HomePage] 收到刷新事件，清除缓存并重新加载");
-    await clearCache("homepage_discs");
-    await clearCache("homepage_banners");
-    loadHomeData();
-  };
-  window.addEventListener("app-refresh", refreshHandler);
 });
 
-onUnmounted(() => {
-  if (refreshHandler) {
-    window.removeEventListener("app-refresh", refreshHandler);
-    refreshHandler = null;
-  }
-});
+loadHomeData();
 </script>
 
 <template>

@@ -1,10 +1,5 @@
-/// 获取用户配置目录
 pub fn get_user_config_dir() -> Result<std::path::PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-    Ok(exe_dir.join("user"))
+    crate::utils::get_app_subdir("user")
 }
 
 /// 保存用户配置到 user/config.json

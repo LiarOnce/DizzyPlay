@@ -1,11 +1,6 @@
 import { loadUserConfig } from "./api.js";
 import { listen } from "@tauri-apps/api/event";
-
-// ===== 检测 Tauri 环境 =====
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
+import { isTauri, buildCookieHeader, getAuthCredentials } from "../utils/format.js";
 
 // ===== 下载状态常量 =====
 export const DownloadStatus = {
@@ -303,10 +298,8 @@ class DownloadManager {
   async _browserDownload(task, csrfToken, sessionId) {
     try {
       const headers = { Referer: "https://www.dizzylab.net" };
-      const cookies = [];
-      if (csrfToken) cookies.push(`csrftoken=${csrfToken}`);
-      if (sessionId) cookies.push(`sessionid=${sessionId}`);
-      if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
+      const cookie = buildCookieHeader(csrfToken, sessionId);
+      if (cookie) headers["Cookie"] = cookie;
 
       const response = await fetch(task.url, { headers });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -443,25 +436,7 @@ class DownloadManager {
    * 获取认证凭据
    */
   async _getAuthCredentials() {
-    let csrfToken = "";
-    let sessionId = "";
-    if (isTauri) {
-      try {
-        const savedCsrf = await loadUserConfig("csrfToken");
-        if (savedCsrf) csrfToken = savedCsrf;
-      } catch (e) {
-        // 忽略
-      }
-      try {
-        const savedSession = await loadUserConfig("sessionid");
-        if (savedSession) sessionId = savedSession;
-      } catch (e) {
-        // 忽略
-      }
-    }
-    if (!csrfToken) csrfToken = localStorage.getItem("csrfToken") || "";
-    if (!sessionId) sessionId = localStorage.getItem("sessionid") || "";
-    return { csrfToken, sessionId };
+    return getAuthCredentials();
   }
 
   // ===== 统计 =====

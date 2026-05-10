@@ -11,6 +11,8 @@ const PLACEHOLDER_IMAGE =
  */
 const tauriCoverCache = new Map();
 
+import { buildCookieHeader } from "../utils/format.js";
+
 // 检测是否在 Tauri 环境中
 const isTauri =
   typeof window !== "undefined" &&
@@ -641,7 +643,6 @@ export async function unlockFreeDisc(discId) {
     "unlockafreedisc",
     body.toString(),
     "application/x-www-form-urlencoded",
-    "解锁免费唱片",
   );
 }
 
@@ -721,7 +722,6 @@ export async function getLabelInfo(labelid, { l = 0, r = 9 } = {}) {
 
 /**
  * 将专辑/作品添加到播放列表（通过全局事件）
- * 各视图组件统一调用此函数，避免重复实现
  * @param {Object} item - 专辑/作品对象，需包含 id, title, cover 等字段
  * @param {string} [artist] - 艺术家名称，不传则使用 item.label 或 "未知艺术家"
  */
@@ -754,10 +754,6 @@ export function addDiscToPlaylist(item, artist) {
 
 /**
  * 获取专辑页面的 HTML
- * @param {string} discId - 专辑 ID
- * @param {string} [csrfToken] - CSRF Token
- * @param {string} [sessionId] - Session ID
- * @returns {Promise<string>} HTML 字符串
  */
 export async function fetchDiscPageHtml(discId, csrfToken, sessionId) {
   if (isTauri) {
@@ -767,13 +763,10 @@ export async function fetchDiscPageHtml(discId, csrfToken, sessionId) {
       sessionId: sessionId || "",
     });
   }
-  // 非 Tauri 环境：通过 Vite proxy 获取
   const url = `https://www.dizzylab.net/d/${discId}/`;
   const headers = { Referer: "https://www.dizzylab.net" };
-  const cookies = [];
-  if (csrfToken) cookies.push(`csrftoken=${csrfToken}`);
-  if (sessionId) cookies.push(`sessionid=${sessionId}`);
-  if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
+  const cookie = buildCookieHeader(csrfToken, sessionId);
+  if (cookie) headers["Cookie"] = cookie;
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.text();
@@ -811,14 +804,6 @@ export async function parseDownloadLinks(html) {
   return links;
 }
 
-/**
- * 下载文件到指定路径
- * @param {string} url - 下载链接
- * @param {string} savePath - 保存目录
- * @param {string} [csrfToken] - CSRF Token
- * @param {string} [sessionId] - Session ID
- * @returns {Promise<string>} 保存的文件路径
- */
 export async function downloadFile(
   url,
   savePath,
@@ -833,12 +818,9 @@ export async function downloadFile(
       sessionId,
     });
   }
-  // 非 Tauri 环境：通过浏览器下载（携带 cookie）
   const headers = { Referer: "https://www.dizzylab.net" };
-  const cookies = [];
-  if (csrfToken) cookies.push(`csrftoken=${csrfToken}`);
-  if (sessionId) cookies.push(`sessionid=${sessionId}`);
-  if (cookies.length > 0) headers["Cookie"] = cookies.join("; ");
+  const cookie = buildCookieHeader(csrfToken, sessionId);
+  if (cookie) headers["Cookie"] = cookie;
 
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

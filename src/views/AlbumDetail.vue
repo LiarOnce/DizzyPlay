@@ -29,6 +29,11 @@ import {
 } from "../services/api.js";
 import { downloadManager } from "../services/downloadManager.js";
 import MetadataExporter from "../components/MetadataExporter.vue";
+import {
+  formatDuration,
+  isTauri,
+  getAuthCredentials,
+} from "../utils/format.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -107,16 +112,6 @@ function getDurationViaAudio(mp3Url) {
     audio.src = mp3Url;
     audio.load();
   });
-}
-
-/**
- * 将秒数格式化为 mm:ss
- */
-function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return "--:--";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 async function loadAlbumDetail() {
@@ -362,7 +357,6 @@ async function showDownloadDialog() {
   downloadLoading.value = true;
   downloadDialogVisible.value = true;
   try {
-    // 加载下载保存路径
     if (isTauri) {
       try {
         const path = await loadUserConfig("downloadPath");
@@ -371,27 +365,7 @@ async function showDownloadDialog() {
         console.warn("[AlbumDetail] 加载下载路径失败:", e);
       }
     }
-    // 获取 CSRF Token 和 Session ID（从设置中读取）
-    let csrfToken = "";
-    let sessionId = "";
-    try {
-      const savedCsrf = await loadUserConfig("csrfToken");
-      if (savedCsrf) csrfToken = savedCsrf;
-    } catch (e) {
-      // 忽略
-    }
-    try {
-      const savedSession = await loadUserConfig("sessionid");
-      if (savedSession) sessionId = savedSession;
-    } catch (e) {
-      // 忽略
-    }
-    if (!csrfToken) {
-      csrfToken = localStorage.getItem("csrfToken") || "";
-    }
-    if (!sessionId) {
-      sessionId = localStorage.getItem("sessionid") || "";
-    }
+    const { csrfToken, sessionId } = await getAuthCredentials();
     const html = await fetchDiscPageHtml(album.value.id, csrfToken, sessionId);
     const links = await parseDownloadLinks(html);
     downloadLinks.value = links;
@@ -428,11 +402,6 @@ function startDownload(index) {
  * 检测 Tauri 环境
  */
 import { ElMessage } from "element-plus";
-
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
 
 /**
  * 通过外部浏览器打开链接

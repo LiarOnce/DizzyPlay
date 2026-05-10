@@ -9,6 +9,7 @@
     "core:default",
     "opener:default",
     "clipboard-manager:default",
+    "clipboard-manager:allow-write-text",
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-set-size",

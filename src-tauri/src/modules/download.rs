@@ -32,26 +32,12 @@ pub async fn fetch_disc_page_html(
         !session_id.is_empty()
     );
 
-    let client = reqwest::Client::new();
-    let mut request = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        );
-
-    // 添加 cookie 认证（dizzylab 网页版使用 csrftoken 和 sessionid cookie）
-    let mut cookies = Vec::new();
-    if !csrf_token.is_empty() {
-        cookies.push(format!("csrftoken={}", csrf_token));
-    }
-    if !session_id.is_empty() {
-        cookies.push(format!("sessionid={}", session_id));
-    }
-    if !cookies.is_empty() {
-        request = request.header("Cookie", cookies.join("; "));
-    }
+    let client = crate::utils::create_dizzylab_client();
+    let request = crate::utils::add_cookie_header(
+        crate::utils::add_dizzylab_headers(client.get(&url)),
+        &csrf_token,
+        &session_id,
+    );
 
     let response = request
         .send()
@@ -204,25 +190,11 @@ pub async fn download_file(
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let mut request = client
-        .get(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        );
-
-    // 添加 cookie 认证
-    let mut cookies = Vec::new();
-    if !csrf_token.is_empty() {
-        cookies.push(format!("csrftoken={}", csrf_token));
-    }
-    if !session_id.is_empty() {
-        cookies.push(format!("sessionid={}", session_id));
-    }
-    if !cookies.is_empty() {
-        request = request.header("Cookie", cookies.join("; "));
-    }
+    let mut request = crate::utils::add_cookie_header(
+        crate::utils::add_dizzylab_headers(client.get(&url)),
+        &csrf_token,
+        &session_id,
+    );
 
     // 断点续传：如果 offset > 0，发送 Range 请求头
     if offset > 0 {

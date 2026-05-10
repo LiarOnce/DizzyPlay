@@ -6,16 +6,9 @@ const MPEG_VERSION_MAP: [u8; 4] = [2, 1, 0, 3];
 /// 下载文件的前 512KB 数据，从中解析出总帧数和采样率，计算时长（秒）
 #[tauri::command]
 pub async fn get_mp3_duration(url: String) -> Result<f64, String> {
-    let client = reqwest::Client::new();
-    // 下载前 512KB 数据，足够包含 Xing/VBRI 头部
-    let response = client
-        .get(&url)
+    let client = crate::utils::create_dizzylab_client();
+    let response = crate::utils::add_dizzylab_headers(client.get(&url))
         .header("Range", "bytes=0-524288")
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
         .send()
         .await
         .map_err(|e| format!("音频请求失败: {}", e))?;
@@ -203,11 +196,7 @@ pub async fn get_mp3_duration(url: String) -> Result<f64, String> {
     }
 
     // 如果 Xing/VBRI 都未找到，尝试通过文件总大小估算
-    // 获取 Content-Length
-    let head_response = client
-        .head(&url)
-        .header("Referer", "https://www.dizzylab.net")
-        .send()
+    let head_response = crate::utils::add_dizzylab_headers(client.head(&url)).send()
         .await
         .map_err(|e| format!("HEAD 请求失败: {}", e))?;
 

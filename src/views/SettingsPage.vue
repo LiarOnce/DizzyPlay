@@ -10,13 +10,8 @@ import {
   WarningFilled,
 } from "@element-plus/icons-vue";
 import { saveUserConfig, loadUserConfig } from "../services/api.js";
+import { isTauri, formatSizeMB as formatSize } from "../utils/format.js";
 import aboutHtml from "/src/assets/about.html?raw";
-
-// ===== 检测 Tauri 环境 =====
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
 
 // ===== 通用设置 =====
 const use320kbps = ref(false);
@@ -154,12 +149,6 @@ async function getDirSize(dirType) {
     console.warn(`[Settings] 获取 ${dirType} 大小失败:`, e);
     return 0;
   }
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes <= 0) return "0 MB";
-  const mb = bytes / (1024 * 1024);
-  return mb.toFixed(2) + " MB";
 }
 
 async function loadSizes() {

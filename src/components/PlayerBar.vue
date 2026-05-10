@@ -21,14 +21,7 @@ import {
   getCachedCoverUrl,
   getCachedMusicUrl,
 } from "../services/api.js";
-
-// ===== 工具函数 =====
-function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return "--:--";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+import { formatDuration } from "../utils/format.js";
 
 // ===== 播放状态 =====
 const isPlaying = ref(false);

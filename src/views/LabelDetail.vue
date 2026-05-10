@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
+import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowLeft,
@@ -14,9 +14,12 @@ import {
   getCachedCoverUrl,
   saveCache,
   loadCache,
+  clearCache,
 } from "../services/api.js";
-
 import { globalOffsets } from "../globalvar.js";
+import { usePagination } from "../composables/usePagination.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
+import { useAppRefresh } from "../composables/useAppRefresh.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -25,123 +28,40 @@ const loading = ref(true);
 const error = ref("");
 const labelInfo = ref(null);
 const discs = ref([]);
-
-// 图片缓存映射
-const coverCache = reactive({});
-const memberCoverCache = reactive({});
-const pendingCovers = new Set();
-const pendingMemberCovers = new Set();
-
-// 社团封面缓存
 const labelCoverUrl = ref("");
 
-// ===== 分页状态 =====
-const pageSize = 20;
-const currentPage = ref(1);
+const {
+  paginatedItems: paginatedDiscs,
+  currentPage,
+  totalPages,
+  pageSize,
+  handlePageChange,
+  resetPage,
+} = usePagination(discs);
 
-const paginatedDiscs = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return discs.value.slice(start, start + pageSize);
-});
-
-const totalPages = computed(() => {
-  return Math.ceil(discs.value.length / pageSize) || 1;
-});
-
-function handlePageChange(page) {
-  currentPage.value = page;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-/**
- * 缓存当前分页可见的封面
- */
-async function cacheVisibleCovers(items) {
-  if (!items || items.length === 0) return;
-  const tasks = [];
-  for (const item of items) {
-    const cover = item.cover;
-    if (cover) {
-      const key = `disc_${item.id}`;
-      if (coverCache[key] || pendingCovers.has(key)) continue;
-      pendingCovers.add(key);
-      tasks.push(
-        getCachedCoverUrl(cover)
-          .then((url) => {
-            coverCache[key] = url;
-            pendingCovers.delete(key);
-          })
-          .catch(() => {
-            pendingCovers.delete(key);
-          }),
-      );
-    }
-  }
-  if (tasks.length > 0) {
-    await Promise.allSettled(tasks);
-  }
-}
-
-function getDiscCover(item) {
-  const key = `disc_${item.id}`;
-  return coverCache[key] || getCoverUrl(item.cover);
-}
-
-/**
- * 缓存成员头像
- */
-async function cacheMemberCovers(members) {
-  if (!members || members.length === 0) return;
-  const tasks = [];
-  for (const member of members) {
-    const cover = member.cover;
-    if (cover) {
-      const key = `member_${member.id}`;
-      if (memberCoverCache[key] || pendingMemberCovers.has(key)) continue;
-      pendingMemberCovers.add(key);
-      tasks.push(
-        getCachedCoverUrl(cover)
-          .then((url) => {
-            memberCoverCache[key] = url;
-            pendingMemberCovers.delete(key);
-          })
-          .catch(() => {
-            pendingMemberCovers.delete(key);
-          }),
-      );
-    }
-  }
-  if (tasks.length > 0) {
-    await Promise.allSettled(tasks);
-  }
-}
+const { cacheVisibleCovers, getCover: getDiscCover } = useCoverCache("disc");
+const { cacheVisibleCovers: cacheMemberCovers, getCover: _getMemberAvatar } =
+  useCoverCache("member");
 
 function getMemberAvatar(member) {
-  const key = `member_${member.id}`;
-  return memberCoverCache[key] || getCoverUrl(member.cover);
+  return _getMemberAvatar(member, { coverField: "cover", idField: "id" });
 }
 
-/**
- * 查看用户详情
- */
+watch(paginatedDiscs, (newItems) => {
+  if (newItems?.length > 0) cacheVisibleCovers(newItems);
+});
+
+// 跳转到用户信息
 function viewMember(member) {
-  if (member.id) {
-    router.push(`/user/${member.id}`);
-  }
+  if (member.id) router.push(`/user/${member.id}`);
 }
 
-/**
- * 查看专辑详情
- */
+// 跳转到专辑信息
 function viewDisc(item) {
-  if (item.id) {
-    router.push(`/album/${item.id}`);
-  }
+  if (item.id) router.push(`/album/${item.id}`);
 }
 
-/**
- * 返回社团列表
- */
+// 返回社团列表
 function goBack() {
   router.push("/label");
 }
@@ -158,7 +78,6 @@ async function loadLabelDetail() {
   error.value = "";
   const cacheKey = `label_detail_${labelid}`;
 
-  // 尝试从缓存加载
   const cachedData = await loadCache(cacheKey);
   if (cachedData) {
     labelInfo.value = cachedData;
@@ -179,7 +98,6 @@ async function loadLabelDetail() {
 
   try {
     const data = await getLabelInfo(labelid, { l: 0, r: globalOffsets });
-    console.log(`[LabelDetail] 获取到数据:`, data);
     labelInfo.value = data;
     discs.value = data.disc || [];
     // 缓存社团封面
@@ -201,55 +119,24 @@ async function loadLabelDetail() {
   }
 }
 
-// 监听分页变化，自动缓存新页面的封面
-
-watch(
-  paginatedDiscs,
-  (newItems) => {
-    if (newItems && newItems.length > 0) {
-      cacheVisibleCovers(newItems);
-    }
-  },
-  { immediate: false },
-);
-
-let refreshHandler = null;
-
-onMounted(() => {
+useAppRefresh(async () => {
+  const cacheKey = `label_detail_${route.params.id}`;
+  await clearCache(cacheKey).catch(() => {});
+  resetPage();
   loadLabelDetail();
-  refreshHandler = async () => {
-    console.log("[LabelDetail] 收到刷新事件，清除缓存并重新加载");
-    const labelid = route.params.id;
-    const cacheKey = `label_detail_${labelid}`;
-    try {
-      const { clearCache } = await import("../services/api.js");
-      await clearCache(cacheKey);
-    } catch (e) {
-      console.log("[LabelDetail] 清除缓存失败，直接重新加载");
-    }
-    currentPage.value = 1;
-    loadLabelDetail();
-  };
-  window.addEventListener("app-refresh", refreshHandler);
 });
 
-// 监听路由参数变化，从 /label/1 跳转到 /label/2 时重新加载
 watch(
   () => route.params.id,
   (newId, oldId) => {
     if (newId && newId !== oldId) {
-      currentPage.value = 1;
+      resetPage();
       loadLabelDetail();
     }
   },
 );
 
-onUnmounted(() => {
-  if (refreshHandler) {
-    window.removeEventListener("app-refresh", refreshHandler);
-    refreshHandler = null;
-  }
-});
+loadLabelDetail();
 </script>
 
 <template>
