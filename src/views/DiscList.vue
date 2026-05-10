@@ -87,10 +87,15 @@ async function loadData() {
 }
 
 function viewItem(item) {
-  if (route.path === "/label" && item.labelid) {
+  if (route.path === "/following") {
+    // 关注列表全是社团，id 实际为 labelid
+    if (item.id) router.push(`/label/${item.id}`);
+  } else if (item.labelid) {
     router.push(`/label/${item.labelid}`);
   } else if (item.id) {
     router.push(`/album/${item.id}`);
+  } else if (item.uid) {
+    router.push(`/user/${item.uid}`);
   }
 }
 
