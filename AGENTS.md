@@ -8,18 +8,18 @@ DizzyPlay 是一个基于 **Tauri v2** 的桌面客户端，为 [dizzylab](https
 
 ### 技术栈
 
-| 层级 | 技术 | 说明 |
-| ------ | ------ | ------ |
-| 桌面框架 | Tauri v2 | 跨平台桌面壳，提供原生窗口、文件系统、进程通信 |
-| 前端框架 | Vue 3 (Composition API) | `<script setup>` + `ref`/`computed`/`watch`/`reactive` |
-| UI 库 | Element Plus | `el-button`, `el-card`, `el-dialog`, `el-progress`, `el-pagination` 等 |
-| 图标 | `@element-plus/icons-vue` | 全局注册，模板中直接使用 `<el-icon><Headset /></el-icon>` |
-| 路由 | vue-router 4 | 懒加载路由，`keep-alive` 缓存 HomePage 和 DiscList |
-| 状态管理 | 无 Pinia/Vuex | 使用 `reactive` + 模块级单例 + 自定义事件 |
-| 构建 | Vite 6 | 开发服务器代理 `/apis/` `/cdn/` `/streaming/` 到 dizzylab |
-| 包管理 | pnpm | |
-| Rust 后端 | reqwest + tokio | HTTP 代理、文件缓存、MP3 时长解析、流式下载 |
-| 序列化 | serde + serde_json | Rust ↔ JS 数据交换 |
+| 层级      | 技术                      | 说明                                                                   |
+| --------- | ------------------------- | ---------------------------------------------------------------------- |
+| 桌面框架  | Tauri v2                  | 跨平台桌面壳，提供原生窗口、文件系统、进程通信                         |
+| 前端框架  | Vue 3 (Composition API)   | `<script setup>` + `ref`/`computed`/`watch`/`reactive`                 |
+| UI 库     | Element Plus              | `el-button`, `el-card`, `el-dialog`, `el-progress`, `el-pagination` 等 |
+| 图标      | `@element-plus/icons-vue` | 全局注册，模板中直接使用 `<el-icon><Headset /></el-icon>`              |
+| 路由      | vue-router 4              | 懒加载路由，`keep-alive` 缓存 HomePage 和 DiscList                     |
+| 状态管理  | 无 Pinia/Vuex             | 使用 `reactive` + 模块级单例 + 自定义事件                              |
+| 构建      | Vite 6                    | 开发服务器代理 `/apis/` `/cdn/` `/streaming/` 到 dizzylab              |
+| 包管理    | pnpm                      |                                                                        |
+| Rust 后端 | reqwest + tokio           | HTTP 代理、文件缓存、MP3 时长解析、流式下载                            |
+| 序列化    | serde + serde_json        | Rust ↔ JS 数据交换                                                     |
 
 ### 结构
 
@@ -82,7 +82,7 @@ DizzyPlay/
 │           ├── download.rs     # 下载引擎（流式下载、暂停/续传、进度推送）
 │           ├── html_proxy.rs   # HTML 页面代理抓取
 │           ├── log.rs          # 日志文件写入
-│           ├── music_utils.rs  # MP3 时长解析（Xing/VBRI 头部）
+│           ├── music_utils.rs  # MP3 功能函数 [时长解析（Xing/VBRI 头部）]
 │           ├── playlist.rs     # 播放列表持久化
 │           └── user_configs.rs # 用户配置读写（config.json）
 │
@@ -137,11 +137,11 @@ pub async fn command_name(param1: String, param2: String) -> Result<String, Stri
 
 **缓存架构**：
 
-| 缓存类型 | 存储位置 | 用途 | 命令 |
-| --------- | --------- | ------ | ------ |
-| JSON 数据缓存 | `cache/datas/` | API 响应、专辑详情、列表数据 | `save_cache` / `load_cache` / `delete_cache` / `clear_cache_dir` |
-| 图片缓存 | `cache/images/` | 封面、头像 | `save_image_cache` / `load_image_cache` |
-| 音乐缓存 | `cache/music/` | 流式音频文件 | `save_music_cache` / `load_music_cache` |
+| 缓存类型      | 存储位置        | 用途                         | 命令                                                             |
+| ------------- | --------------- | ---------------------------- | ---------------------------------------------------------------- |
+| JSON 数据缓存 | `cache/datas/`  | API 响应、专辑详情、列表数据 | `save_cache` / `load_cache` / `delete_cache` / `clear_cache_dir` |
+| 图片缓存      | `cache/images/` | 封面、头像                   | `save_image_cache` / `load_image_cache`                          |
+| 音乐缓存      | `cache/music/`  | 流式音频文件                 | `save_music_cache` / `load_music_cache`                          |
 
 **前端缓存 API**（在 [`src/services/api.js`](src/services/api.js:81) 中封装）：
 
@@ -164,12 +164,12 @@ await clearCache("homepage_discs");
 
 应用大量使用 `window.dispatchEvent(new CustomEvent(...))` 进行跨组件通信：
 
-| 事件名 | 触发者 | 监听者 | 用途 |
-| -------- | -------- | -------- | ------ |
-| `add-to-playlist` | AlbumDetail, PlayerBar | PlayerBar | 添加曲目到播放列表 |
-| `add-download-task` | AlbumDetail | DownloadManager | 添加下载任务 |
-| `app-refresh` | TopNavbar | HomePage, DiscList, AlbumDetail | 全局刷新 |
-| `settings-changed` | SettingsPage | AlbumDetail, PlayerBar | 设置变更通知 |
+| 事件名              | 触发者                 | 监听者                          | 用途               |
+| ------------------- | ---------------------- | ------------------------------- | ------------------ |
+| `add-to-playlist`   | AlbumDetail, PlayerBar | PlayerBar                       | 添加曲目到播放列表 |
+| `add-download-task` | AlbumDetail            | DownloadManager                 | 添加下载任务       |
+| `app-refresh`       | TopNavbar              | HomePage, DiscList, AlbumDetail | 全局刷新           |
+| `settings-changed`  | SettingsPage           | AlbumDetail, PlayerBar          | 设置变更通知       |
 
 ### 5. 下载系统架构
 
@@ -209,11 +209,15 @@ const paginatedDiscs = computed(() => {
 });
 
 // 仅缓存当前分页可见的封面
-watch(paginatedDiscs, (newItems) => {
-  if (newItems && newItems.length > 0) {
-    cacheVisibleCovers(newItems);
-  }
-}, { immediate: false });
+watch(
+  paginatedDiscs,
+  (newItems) => {
+    if (newItems && newItems.length > 0) {
+      cacheVisibleCovers(newItems);
+    }
+  },
+  { immediate: false },
+);
 ```
 
 ### 7. keep-alive 缓存策略
@@ -244,23 +248,23 @@ watch(paginatedDiscs, (newItems) => {
 
 路由定义在 [`src/router.js`](src/router.js:3)：
 
-| 路径 | 组件 | 说明 |
-| ------ | ------ | ------ |
-| `/` | HomePage | 首页（keep-alive 缓存） |
-| `/search` | SearchResults | 搜索结果 |
-| `/album/:id` | AlbumDetail | 专辑详情 |
-| `/playlists` | DiscList | 全部专辑（keep-alive 缓存） |
-| `/ep` | DiscList | 单曲 EP |
-| `/dig` | DiscList | 下载商品 |
-| `/label` | DiscList | 社团列表 |
-| `/label/:id` | LabelDetail | 社团详情 |
-| `/user/:id` | UserDetail | 用户详情 |
-| `/purchased` | DiscList | 已购音乐 |
-| `/favorites` | DiscList | 我的收藏 |
-| `/following` | DiscList | 我的关注 |
-| `/settings` | SettingsPage | 设置 |
-| `/downloads` | DownloadPage | 下载管理 |
-| `/redeem` | RedeemPage | 兑换码 |
+| 路径         | 组件          | 说明                        |
+| ------------ | ------------- | --------------------------- |
+| `/`          | HomePage      | 首页（keep-alive 缓存）     |
+| `/search`    | SearchResults | 搜索结果                    |
+| `/album/:id` | AlbumDetail   | 专辑详情                    |
+| `/playlists` | DiscList      | 全部专辑（keep-alive 缓存） |
+| `/ep`        | DiscList      | 单曲 EP                     |
+| `/dig`       | DiscList      | 下载商品                    |
+| `/label`     | DiscList      | 社团列表                    |
+| `/label/:id` | LabelDetail   | 社团详情                    |
+| `/user/:id`  | UserDetail    | 用户详情                    |
+| `/purchased` | DiscList      | 已购音乐                    |
+| `/favorites` | DiscList      | 我的收藏                    |
+| `/following` | DiscList      | 我的关注                    |
+| `/settings`  | SettingsPage  | 设置                        |
+| `/downloads` | DownloadPage  | 下载管理                    |
+| `/redeem`    | RedeemPage    | 兑换码                      |
 
 ---
 
