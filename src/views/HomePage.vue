@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { VideoPlay, Headset, Loading } from "@element-plus/icons-vue";
+import { VideoPlay, StarFilled, Loading } from "@element-plus/icons-vue";
 import {
   getDiscs,
   getSomeCover,
@@ -25,7 +25,14 @@ const loading = ref(true);
 const error = ref("");
 const banners = ref([]);
 
-const { paginatedItems: paginatedAlbums, currentPage, totalPages, pageSize, handlePageChange, resetPage } = usePagination(digitalAlbums);
+const {
+  paginatedItems: paginatedAlbums,
+  currentPage,
+  totalPages,
+  pageSize,
+  handlePageChange,
+  resetPage,
+} = usePagination(digitalAlbums);
 const { coverCache, cacheVisibleCovers, getCover } = useCoverCache("album");
 
 async function cacheBannerCovers(bannerList) {
@@ -38,7 +45,9 @@ async function cacheBannerCovers(bannerList) {
       if (coverCache[key]) continue;
       tasks.push(
         getCachedCoverUrl(cover)
-          .then((url) => { coverCache[key] = url; })
+          .then((url) => {
+            coverCache[key] = url;
+          })
           .catch(() => {}),
       );
     }
@@ -76,14 +85,20 @@ async function loadHomeData() {
       getSomeCover({ l: 0, r: 6 }),
     ]);
 
-    if (discsDataResult.status === "fulfilled" && discsDataResult.value?.discs) {
+    if (
+      discsDataResult.status === "fulfilled" &&
+      discsDataResult.value?.discs
+    ) {
       digitalAlbums.value = discsDataResult.value.discs;
       saveCache("homepage_discs", digitalAlbums.value);
     } else if (!cachedData) {
       digitalAlbums.value = [];
     }
 
-    if (coverDataResult.status === "fulfilled" && coverDataResult.value?.covers) {
+    if (
+      coverDataResult.status === "fulfilled" &&
+      coverDataResult.value?.covers
+    ) {
       banners.value = coverDataResult.value.covers;
       saveCache("homepage_banners", banners.value);
     }
@@ -178,7 +193,7 @@ loadHomeData();
                 <img :src="getAlbumCover(album)" :alt="album.title" />
                 <div class="playlist-overlay"></div>
                 <div class="playlist-plays">
-                  <el-icon><Headset /></el-icon>
+                  <el-icon><StarFilled /></el-icon>
                   <span>+{{ album.likes * 2 || 0 }}dB</span>
                 </div>
               </div>

@@ -7,10 +7,15 @@ import {
   UserFilled,
   ShoppingCart,
   StarFilled,
+  User,
   Collection,
   Setting,
   Tickets,
   ArrowLeftBold,
+  Download,
+  Headset,
+  Box,
+  OfficeBuilding,
 } from "@element-plus/icons-vue";
 
 const route = useRoute();
@@ -22,9 +27,9 @@ const menuItems = [
     title: "Dizzylab",
     children: [
       { path: "/", name: "数字专辑", icon: HomeFilled },
-      { path: "/ep", name: "单曲 EP", icon: List },
-      { path: "/dig", name: "下载商品", icon: List },
-      { path: "/label", name: "社团", icon: List },
+      { path: "/ep", name: "单曲 EP", icon: Headset },
+      { path: "/dig", name: "下载商品", icon: Box },
+      { path: "/label", name: "社团", icon: OfficeBuilding },
     ],
   },
   {
@@ -32,8 +37,8 @@ const menuItems = [
     children: [
       { path: "/purchased", name: "已购", icon: ShoppingCart },
       { path: "/favorites", name: "+2db", icon: StarFilled },
-      { path: "/following", name: "关注", icon: Collection },
-      { path: "/downloads", name: "已下载", icon: Collection },
+      { path: "/following", name: "关注", icon: User },
+      { path: "/downloads", name: "已下载", icon: Download },
     ],
   },
   {

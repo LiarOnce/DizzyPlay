@@ -4,9 +4,9 @@ import { useRoute, useRouter } from "vue-router";
 import {
   VideoPlay,
   VideoPause,
-  Headset,
   Star,
   StarFilled,
+  OfficeBuilding,
   Share,
   ArrowLeft,
   Loading,
@@ -508,7 +508,7 @@ onUnmounted(() => {
         <div class="album-info">
           <h1 class="album-title">{{ album.title }}</h1>
           <p class="album-label">
-            <el-icon><Headset /></el-icon>
+            <el-icon><OfficeBuilding /></el-icon>
             {{ album.label || "未知厂牌" }}
           </p>
           <div class="album-meta">

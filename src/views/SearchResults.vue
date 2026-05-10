@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Headset, Loading } from "@element-plus/icons-vue";
+import { StarFilled, Loading } from "@element-plus/icons-vue";
 import { search, getCoverUrl } from "../services/api.js";
 import { globalOffsets } from "../globalvar.js";
 import { useCoverCache } from "../composables/useCoverCache.js";
@@ -15,10 +15,14 @@ const results = ref([]);
 const loading = ref(false);
 const error = ref("");
 
-const { cacheVisibleCovers, getCover: getResultCover } = useCoverCache("result");
+const { cacheVisibleCovers, getCover: getResultCover } =
+  useCoverCache("result");
 
 async function doSearch(keyword) {
-  if (!keyword?.trim()) { results.value = []; return; }
+  if (!keyword?.trim()) {
+    results.value = [];
+    return;
+  }
   loading.value = true;
   error.value = "";
   try {
@@ -28,16 +32,24 @@ async function doSearch(keyword) {
   } catch (err) {
     console.error("搜索失败:", err);
     error.value = "搜索失败，请检查网络连接";
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 
 function viewAlbum(album) {
   router.push(`/album/${album.id}`);
 }
 
-watch(() => route.query.q, (newQ) => {
-  if (newQ) { query.value = newQ; doSearch(newQ); }
-});
+watch(
+  () => route.query.q,
+  (newQ) => {
+    if (newQ) {
+      query.value = newQ;
+      doSearch(newQ);
+    }
+  },
+);
 
 useAppRefresh(async () => {
   if (query.value?.trim()) doSearch(query.value);
@@ -89,7 +101,7 @@ if (route.query.q) {
               <img :src="getResultCover(album)" :alt="album.title" />
               <div class="result-overlay"></div>
               <div class="result-plays">
-                <el-icon><Headset /></el-icon>
+                <el-icon><StarFilled /></el-icon>
                 <span>+{{ album.likes * 2 || 0 }}dB</span>
               </div>
             </div>

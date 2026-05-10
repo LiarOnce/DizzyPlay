@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { VideoPlay, Headset, Loading } from "@element-plus/icons-vue";
+import { VideoPlay, StarFilled, Loading } from "@element-plus/icons-vue";
 import {
   getDiscs,
   getMyDiscs,
@@ -28,7 +28,14 @@ const loading = ref(true);
 const error = ref("");
 const pageTitle = ref("");
 
-const { paginatedItems: paginatedDiscs, currentPage, totalPages, pageSize, handlePageChange, resetPage } = usePagination(discs);
+const {
+  paginatedItems: paginatedDiscs,
+  currentPage,
+  totalPages,
+  pageSize,
+  handlePageChange,
+  resetPage,
+} = usePagination(discs);
 const { cacheVisibleCovers, getCover } = useCoverCache("item");
 
 function getItemCover(item) {
@@ -49,13 +56,34 @@ watch(paginatedDiscs, (newItems) => {
 });
 
 const pageConfig = {
-  "/playlists": { title: "全部专辑", fetcher: () => getDiscs({ l: 0, r: globalOffsets, sort: "ad" }) },
-  "/ep": { title: "单曲 EP", fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "ep" }) },
-  "/dig": { title: "下载商品", fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "dig" }) },
-  "/label": { title: "社团", fetcher: () => getLabels({ l: 0, r: globalOffsets }) },
-  "/purchased": { title: "已购音乐", fetcher: () => getMyDiscs({ l: 0, r: globalOffsets }) },
-  "/favorites": { title: "我的收藏", fetcher: () => getMyLikes({ l: 0, r: globalOffsets }) },
-  "/following": { title: "我的关注", fetcher: () => getMyFollowing({ l: 0, r: globalOffsets }) },
+  "/playlists": {
+    title: "全部专辑",
+    fetcher: () => getDiscs({ l: 0, r: globalOffsets, sort: "ad" }),
+  },
+  "/ep": {
+    title: "单曲 EP",
+    fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "ep" }),
+  },
+  "/dig": {
+    title: "下载商品",
+    fetcher: () => getDiscs({ l: 0, r: globalOffsets, type: "dig" }),
+  },
+  "/label": {
+    title: "社团",
+    fetcher: () => getLabels({ l: 0, r: globalOffsets }),
+  },
+  "/purchased": {
+    title: "已购音乐",
+    fetcher: () => getMyDiscs({ l: 0, r: globalOffsets }),
+  },
+  "/favorites": {
+    title: "我的收藏",
+    fetcher: () => getMyLikes({ l: 0, r: globalOffsets }),
+  },
+  "/following": {
+    title: "我的关注",
+    fetcher: () => getMyFollowing({ l: 0, r: globalOffsets }),
+  },
 };
 
 const listPaths = Object.keys(pageConfig);
@@ -158,7 +186,7 @@ loadData();
             <img :src="getItemCover(item)" :alt="item.title || item.label" />
             <div class="disc-overlay"></div>
             <div class="disc-plays" v-if="item.likes !== undefined">
-              <el-icon><Headset /></el-icon>
+              <el-icon><StarFilled /></el-icon>
               <span>+{{ item.likes * 2 }}dB</span>
             </div>
           </div>

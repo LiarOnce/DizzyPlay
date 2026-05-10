@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   VideoPlay,
   Headset,
+  StarFilled,
   Loading,
   UserFilled,
 } from "@element-plus/icons-vue";
@@ -236,7 +237,7 @@ loadLabelDetail();
               <img :src="getDiscCover(item)" :alt="item.title" />
               <div class="disc-overlay"></div>
               <div class="disc-plays" v-if="item.likes !== undefined">
-                <el-icon><Headset /></el-icon>
+                <el-icon><StarFilled /></el-icon>
                 <span>+{{ item.likes * 2 }}dB</span>
               </div>
             </div>
