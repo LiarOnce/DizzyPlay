@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, computed } from "vue";
 import {
   Setting,
   DataAnalysis,
@@ -7,83 +7,40 @@ import {
   Loading,
   Delete,
   Download,
-  WarningFilled,
 } from "@element-plus/icons-vue";
-import { saveUserConfig, loadUserConfig } from "../services/api.js";
 import { isTauri, formatSizeMB as formatSize } from "../utils/format.js";
+import { useSetting } from "../utils/settings.js";
 import aboutHtml from "/src/assets/about.html?raw";
 
 // ===== 通用设置 =====
-const use320kbps = ref(false);
-const csrfToken = ref("");
-const sessionId = ref("");
+const {
+  value: use320kbps,
+  load: load320kbps,
+  save: save320kbps,
+} = useSetting("use320kbps", {
+  defaultValue: false,
+  localStorageKey: "settings_use320kbps",
+  fromStorage: (v) => v === "true",
+  toStorage: (v) => (v ? "true" : "false"),
+});
+
+const {
+  value: csrfToken,
+  load: loadCsrfToken,
+  save: saveCsrfToken,
+} = useSetting("csrfToken", { defaultValue: "" });
+
+const {
+  value: sessionId,
+  load: loadSessionId,
+  save: saveSessionId,
+} = useSetting("sessionid", { defaultValue: "" });
+
 const configLoaded = ref(false);
-
-async function loadConfig() {
-  if (!isTauri) {
-    // 非 Tauri 环境使用 localStorage
-    const val = localStorage.getItem("settings_use320kbps");
-    use320kbps.value = val === "true";
-    csrfToken.value = localStorage.getItem("csrfToken") || "";
-    sessionId.value = localStorage.getItem("sessionid") || "";
-    configLoaded.value = true;
-    return;
-  }
-  try {
-    const val = await loadUserConfig("use320kbps");
-    use320kbps.value = val === "true";
-  } catch (e) {
-    console.warn("[Settings] 加载配置失败:", e);
-  }
-  try {
-    const val = await loadUserConfig("csrfToken");
-    csrfToken.value = val || "";
-  } catch (e) {
-    console.warn("[Settings] 加载 CSRF Token 失败:", e);
-  }
-  try {
-    const val = await loadUserConfig("sessionid");
-    sessionId.value = val || "";
-  } catch (e) {
-    console.warn("[Settings] 加载 Session ID 失败:", e);
-  }
-  configLoaded.value = true;
-}
-
-async function saveConfig() {
-  if (!isTauri) {
-    localStorage.setItem(
-      "settings_use320kbps",
-      use320kbps.value ? "true" : "false",
-    );
-    localStorage.setItem("csrfToken", csrfToken.value);
-    localStorage.setItem("sessionid", sessionId.value);
-    return;
-  }
-  try {
-    await saveUserConfig("use320kbps", use320kbps.value ? "true" : "false");
-    console.log("[Settings] 已保存配置: use320kbps =", use320kbps.value);
-  } catch (e) {
-    console.warn("[Settings] 保存配置失败:", e);
-  }
-  try {
-    await saveUserConfig("csrfToken", csrfToken.value);
-    console.log("[Settings] 已保存 CSRF Token");
-  } catch (e) {
-    console.warn("[Settings] 保存 CSRF Token 失败:", e);
-  }
-  try {
-    await saveUserConfig("sessionid", sessionId.value);
-    console.log("[Settings] 已保存 Session ID");
-  } catch (e) {
-    console.warn("[Settings] 保存 Session ID 失败:", e);
-  }
-}
 
 function onUse320kbpsChange(val) {
   use320kbps.value = val;
-  saveConfig();
-  // 触发全局事件，通知其他组件 320Kbps 设置已变更
+  save320kbps();
   window.dispatchEvent(
     new CustomEvent("settings-changed", {
       detail: { key: "use320kbps", value: val },
@@ -92,73 +49,32 @@ function onUse320kbpsChange(val) {
 }
 
 function onCsrfTokenChange() {
-  saveConfig();
+  saveCsrfToken();
 }
 
 function onSessionIdChange() {
-  saveConfig();
+  saveSessionId();
 }
 
 // ===== 下载设置 =====
-const downloadPath = ref("");
-const autoExtract = ref(false);
+const {
+  value: downloadPath,
+  load: loadDownloadPath,
+  save: saveDownloadPath,
+} = useSetting("downloadPath", { defaultValue: "" });
 
-async function loadDownloadPath() {
-  if (!isTauri) {
-    downloadPath.value = localStorage.getItem("downloadPath") || "";
-    return;
-  }
-  try {
-    const val = await loadUserConfig("downloadPath");
-    downloadPath.value = val || "";
-  } catch (e) {
-    console.warn("[Settings] 加载下载路径失败:", e);
-  }
-}
-
-async function saveDownloadPath() {
-  if (!isTauri) {
-    localStorage.setItem("downloadPath", downloadPath.value);
-    return;
-  }
-  try {
-    await saveUserConfig("downloadPath", downloadPath.value);
-    console.log("[Settings] 已保存下载路径:", downloadPath.value);
-  } catch (e) {
-    console.warn("[Settings] 保存下载路径失败:", e);
-  }
-}
+const {
+  value: autoExtract,
+  load: loadAutoExtract,
+  save: saveAutoExtract,
+} = useSetting("autoExtract", {
+  defaultValue: false,
+  fromStorage: (v) => v === "true",
+  toStorage: (v) => (v ? "true" : "false"),
+});
 
 function onDownloadPathChange() {
   saveDownloadPath();
-}
-
-// ===== 解压设置 =====
-
-async function loadAutoExtract() {
-  if (!isTauri) {
-    autoExtract.value = localStorage.getItem("autoExtract") === "true";
-    return;
-  }
-  try {
-    const val = await loadUserConfig("autoExtract");
-    autoExtract.value = val === "true";
-  } catch (e) {
-    console.warn("[Settings] 加载自动解压设置失败:", e);
-  }
-}
-
-async function saveAutoExtract() {
-  if (!isTauri) {
-    localStorage.setItem("autoExtract", autoExtract.value ? "true" : "false");
-    return;
-  }
-  try {
-    await saveUserConfig("autoExtract", autoExtract.value ? "true" : "false");
-    console.log("[Settings] 已保存自动解压设置:", autoExtract.value);
-  } catch (e) {
-    console.warn("[Settings] 保存自动解压设置失败:", e);
-  }
 }
 
 function onAutoExtractChange(val) {
@@ -246,12 +162,17 @@ function loadAboutMd() {
 }
 
 // ===== 生命周期 =====
-onMounted(() => {
-  loadConfig();
+onMounted(async () => {
+  await Promise.all([
+    load320kbps(),
+    loadCsrfToken(),
+    loadSessionId(),
+    loadDownloadPath(),
+    loadAutoExtract(),
+  ]);
+  configLoaded.value = true;
   loadSizes();
   loadAboutMd();
-  loadDownloadPath();
-  loadAutoExtract();
 });
 </script>
 
