@@ -6,6 +6,8 @@ mod api;
 mod cache;
 #[path = "modules/download.rs"]
 mod download;
+#[path = "modules/extract.rs"]
+mod extract;
 #[path = "modules/html_proxy.rs"]
 mod html_proxy;
 #[path = "modules/log.rs"]
@@ -50,6 +52,7 @@ pub fn run() {
             download::download_file,
             download::open_download_folder,
             download::cancel_download,
+            extract::extract_archive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

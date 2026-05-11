@@ -8,6 +8,7 @@ import {
   VideoPlay,
   Close,
   Loading,
+  Check
 } from "@element-plus/icons-vue";
 import { loadUserConfig } from "../services/api.js";
 import {
@@ -87,6 +88,7 @@ const statusText = computed(() => {
     [DownloadStatus.COMPLETED]: "已完成",
     [DownloadStatus.FAILED]: "下载失败",
     [DownloadStatus.CANCELLED]: "已取消",
+    [DownloadStatus.EXTRACTING]: "解压中",
   };
   return (s) => map[s] || s;
 });
@@ -99,6 +101,7 @@ const statusClass = computed(() => {
     [DownloadStatus.COMPLETED]: "status-completed",
     [DownloadStatus.FAILED]: "status-failed",
     [DownloadStatus.CANCELLED]: "status-cancelled",
+    [DownloadStatus.EXTRACTING]: "status-extracting",
   };
   return (s) => map[s] || "";
 });
@@ -181,18 +184,23 @@ onUnmounted(() => {
             v-if="
               task.status === DownloadStatus.DOWNLOADING ||
               task.status === DownloadStatus.PAUSED ||
-              task.status === DownloadStatus.PENDING
+              task.status === DownloadStatus.PENDING ||
+              task.status === DownloadStatus.EXTRACTING
             "
             class="progress-wrapper"
           >
             <el-progress
+              v-if="task.status !== DownloadStatus.EXTRACTING"
               :percentage="task.progress"
               :status="task.status === DownloadStatus.PAUSED ? 'warning' : ''"
               :stroke-width="6"
               :width="160"
               style="width: 100%; max-width: 300px"
             />
-            <span class="progress-text" v-if="task.totalBytes > 0">
+            <span class="progress-text" v-if="task.status === DownloadStatus.EXTRACTING">
+              <el-icon class="is-loading"><Loading /></el-icon> 解压中...
+            </span>
+            <span class="progress-text" v-else-if="task.totalBytes > 0">
               {{ formatSize(task.downloadedBytes) }} /
               {{ formatSize(task.totalBytes) }}
             </span>
@@ -233,11 +241,19 @@ onUnmounted(() => {
             circle
             @click="cancelDownloadTask(task.id)"
           />
-          <!-- 已完成 → 打开文件夹（暂不可用） -->
+          <!-- 解压中 → loading -->
+          <el-button
+            v-else-if="task.status === DownloadStatus.EXTRACTING"
+            size="small"
+            :icon="Loading"
+            circle
+            disabled
+          />
+          <!-- 已完成 -->
           <el-button
             v-else-if="task.status === DownloadStatus.COMPLETED"
             size="small"
-            :icon="Download"
+            :icon="Check"
             circle
             disabled
           />
@@ -325,6 +341,10 @@ onUnmounted(() => {
   border-color: var(--color-primary, #409eff);
 }
 
+.download-item.status-extracting {
+  border-color: var(--color-warning, #e6a23c);
+}
+
 .item-info {
   flex: 1;
   min-width: 0;
@@ -383,6 +403,11 @@ onUnmounted(() => {
 .item-status.status-cancelled {
   background: rgba(255, 255, 255, 0.05);
   color: #666;
+}
+
+.item-status.status-extracting {
+  background: rgba(230, 162, 60, 0.15);
+  color: #e6a23c;
 }
 
 .item-album {

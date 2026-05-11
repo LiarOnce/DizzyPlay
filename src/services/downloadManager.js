@@ -10,6 +10,7 @@ export const DownloadStatus = {
   COMPLETED: "completed",
   FAILED: "failed",
   CANCELLED: "cancelled",
+  EXTRACTING: "extracting",
 };
 
 // ===== 存储键 =====
@@ -151,6 +152,8 @@ class DownloadManager {
       totalBytes: 0,
       downloadedBytes: 0,
       savePath: "",
+      saveFilePath: "",
+      extractedPath: "",
       createdAt: Date.now(),
       completedAt: null,
       error: "",
@@ -258,10 +261,25 @@ class DownloadManager {
         offset: task.downloadedBytes || 0,
       });
 
-      task.status = DownloadStatus.COMPLETED;
+      task.saveFilePath = result;
       task.progress = 100;
       task.completedAt = Date.now();
       console.log("[DownloadManager] 下载完成:", result);
+
+      // 检查是否需要自动解压
+      const autoExtract = await this._getAutoExtract();
+      if (autoExtract) {
+        try {
+          await this._extractArchive(task);
+          task.status = DownloadStatus.COMPLETED;
+        } catch (extractErr) {
+          task.status = DownloadStatus.FAILED;
+          task.error = String(extractErr);
+          task.completedAt = null;
+        }
+      } else {
+        task.status = DownloadStatus.COMPLETED;
+      }
     } catch (err) {
       const errMsg = String(err);
       console.error("[DownloadManager] 下载失败:", errMsg);
@@ -430,6 +448,40 @@ class DownloadManager {
     );
     this._saveTasks();
     this._notify();
+  }
+
+  /**
+   * 获取自动解压设置
+   */
+  async _getAutoExtract() {
+    if (isTauri) {
+      try {
+        const val = await loadUserConfig("autoExtract");
+        return val === "true";
+      } catch (e) {
+        // 忽略
+      }
+    }
+    return localStorage.getItem("autoExtract") === "true";
+  }
+
+  /**
+   * 解压已下载的压缩包
+   */
+  async _extractArchive(task) {
+    if (!isTauri || !task.saveFilePath) return;
+
+    task.status = DownloadStatus.EXTRACTING;
+    this._notify();
+
+    const { invoke } = window.__TAURI_INTERNALS__;
+    const extractedPath = await invoke("extract_archive", {
+      archivePath: task.saveFilePath,
+      deleteAfter: true, // 解压后直接删除压缩包
+    });
+
+    task.extractedPath = extractedPath;
+    console.log("[DownloadManager] 解压完成:", extractedPath);
   }
 
   /**

@@ -101,6 +101,7 @@ function onSessionIdChange() {
 
 // ===== 下载设置 =====
 const downloadPath = ref("");
+const autoExtract = ref(false);
 
 async function loadDownloadPath() {
   if (!isTauri) {
@@ -130,6 +131,39 @@ async function saveDownloadPath() {
 
 function onDownloadPathChange() {
   saveDownloadPath();
+}
+
+// ===== 解压设置 =====
+
+async function loadAutoExtract() {
+  if (!isTauri) {
+    autoExtract.value = localStorage.getItem("autoExtract") === "true";
+    return;
+  }
+  try {
+    const val = await loadUserConfig("autoExtract");
+    autoExtract.value = val === "true";
+  } catch (e) {
+    console.warn("[Settings] 加载自动解压设置失败:", e);
+  }
+}
+
+async function saveAutoExtract() {
+  if (!isTauri) {
+    localStorage.setItem("autoExtract", autoExtract.value ? "true" : "false");
+    return;
+  }
+  try {
+    await saveUserConfig("autoExtract", autoExtract.value ? "true" : "false");
+    console.log("[Settings] 已保存自动解压设置:", autoExtract.value);
+  } catch (e) {
+    console.warn("[Settings] 保存自动解压设置失败:", e);
+  }
+}
+
+function onAutoExtractChange(val) {
+  autoExtract.value = val;
+  saveAutoExtract();
 }
 
 // ===== 数据管理 =====
@@ -217,6 +251,7 @@ onMounted(() => {
   loadSizes();
   loadAboutMd();
   loadDownloadPath();
+  loadAutoExtract();
 });
 </script>
 
@@ -343,6 +378,18 @@ onMounted(() => {
                   style="width: 280px"
                   @change="onDownloadPathChange"
                 />
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-title">下载后自动解压</span>
+                <span class="setting-desc">
+                  下载完成后自动解压 zip 压缩包并删除原文件
+                </span>
+              </div>
+              <div class="setting-control">
+                <el-switch v-model="autoExtract" @change="onAutoExtractChange" />
               </div>
             </div>
           </div>
