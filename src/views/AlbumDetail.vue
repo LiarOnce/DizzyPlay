@@ -667,7 +667,7 @@ onUnmounted(() => {
         <span>正在获取下载链接...</span>
       </div>
       <div v-else-if="downloadLinks.length === 0" class="download-empty">
-        <el-empty description="暂无可用下载链接" />
+        <el-empty description="暂无可用下载链接，请检查 CSRF Token 和 SessionID" />
       </div>
       <div v-else class="download-list">
         <div
