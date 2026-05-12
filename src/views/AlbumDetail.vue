@@ -347,6 +347,12 @@ function goBack() {
   router.back();
 }
 
+function goToLabel() {
+  if (album.value?.labelid) {
+    router.push(`/label/${album.value.labelid}`);
+  }
+}
+
 // ===== 下载功能 =====
 
 /**
@@ -507,7 +513,11 @@ onUnmounted(() => {
         </div>
         <div class="album-info">
           <h1 class="album-title">{{ album.title }}</h1>
-          <p class="album-label">
+          <p
+            class="album-label"
+            :class="{ clickable: album.labelid }"
+            @click="goToLabel"
+          >
             <el-icon><OfficeBuilding /></el-icon>
             {{ album.label || "未知厂牌" }}
           </p>
@@ -780,6 +790,15 @@ onUnmounted(() => {
   font-size: 15px;
   color: var(--el-text-color-secondary);
   margin: 0;
+}
+
+.album-label.clickable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.album-label.clickable:hover {
+  color: var(--el-color-primary);
 }
 
 .album-meta {

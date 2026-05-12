@@ -62,9 +62,9 @@ function viewDisc(item) {
   if (item.id) router.push(`/album/${item.id}`);
 }
 
-// 返回社团列表
+// 返回上一页
 function goBack() {
-  router.push("/label");
+  router.back();
 }
 
 async function loadLabelDetail() {
@@ -163,9 +163,7 @@ loadLabelDetail();
     <template v-else-if="labelInfo">
       <!-- 返回按钮 -->
       <div class="back-bar">
-        <el-button text :icon="ArrowLeft" @click="goBack"
-          >返回社团列表</el-button
-        >
+        <el-button text :icon="ArrowLeft" @click="goBack">返回</el-button>
       </div>
 
       <!-- 社团头部信息 -->
