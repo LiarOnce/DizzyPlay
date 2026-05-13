@@ -1,10 +1,18 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import { execSync } from "child_process";
+import pkg from "./package.json" assert { type: "json" };
 
 const host = process.env.TAURI_DEV_HOST;
 
+const gitCommit = execSync("git rev-parse --short HEAD").toString().trim();
+const appVersion = `${pkg.version}+${gitCommit}`;
+
 export default defineConfig(async () => ({
   plugins: [vue()],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   clearScreen: false,
   server: {
     port: 1420,

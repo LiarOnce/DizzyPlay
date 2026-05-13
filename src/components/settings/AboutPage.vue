@@ -1,10 +1,11 @@
 <script setup>
 import logoUrl from "/logo.png";
+const version = __APP_VERSION__;
 </script>
 
 <template>
   <div class="tab-content">
-    <h1>DizzyPlay</h1>
+    <h1>DizzyPlay (version: {{ version }})</h1>
     <div class="about-content">
       <img :src="logoUrl" width="200" height="200" />
 
