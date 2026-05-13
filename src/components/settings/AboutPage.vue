@@ -4,9 +4,8 @@ import logoUrl from "/logo.png";
 
 <template>
   <div class="tab-content">
+    <h1>DizzyPlay</h1>
     <div class="about-content">
-      <h1>DizzyPlay</h1>
-
       <img :src="logoUrl" width="200" height="200" />
 
       <p>

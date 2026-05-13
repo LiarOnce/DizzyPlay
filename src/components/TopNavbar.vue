@@ -72,6 +72,16 @@ async function handleLogout() {
   userAvatar.value = "";
 }
 
+function openUserSettings() {
+  if (!userInfo.id) return;
+  const url = `https://www.dizzylab.net/u/${userInfo.id}/options/`;
+  if (window.__TAURI_INTERNALS__) {
+    window.__TAURI_INTERNALS__.invoke("plugin:opener|open_url", { url });
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 function toggleTheme() {
   isDark.value = !isDark.value;
   document.documentElement.classList.toggle("dark", isDark.value);
@@ -205,7 +215,7 @@ onMounted(async () => {
               <el-dropdown-item :icon="User">
                 {{ userInfo.name || "用户" }}
               </el-dropdown-item>
-              <el-dropdown-item :icon="Setting">账号设置</el-dropdown-item>
+              <el-dropdown-item :icon="Setting" @click="openUserSettings">账号设置</el-dropdown-item>
               <el-dropdown-item
                 divided
                 :icon="SwitchButton"
