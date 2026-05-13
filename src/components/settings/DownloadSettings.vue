@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from "vue";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useSetting } from "../../utils/settings.js";
+import { isTauri } from "../../utils/format.js";
 
 const {
   value: downloadPath,
@@ -17,6 +19,19 @@ const {
   fromStorage: (v) => v === "true",
   toStorage: (v) => (v ? "true" : "false"),
 });
+
+async function selectDownloadPath() {
+  if (!isTauri) return;
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    defaultPath: downloadPath.value || undefined,
+  });
+  if (selected) {
+    downloadPath.value = selected;
+    saveDownloadPath();
+  }
+}
 
 function onDownloadPathChange() {
   saveDownloadPath();
@@ -41,14 +56,22 @@ onMounted(async () => {
           <span class="setting-title">下载保存路径</span>
           <span class="setting-desc">下载的专辑文件将保存到此目录</span>
         </div>
-        <div class="setting-control">
+        <div class="setting-control path-control">
           <el-input
             v-model="downloadPath"
+            :readonly="isTauri"
             placeholder="默认：程序所在目录/downloads"
             size="small"
             style="width: 280px"
             @change="onDownloadPathChange"
           />
+          <el-button
+            v-if="isTauri"
+            size="small"
+            @click="selectDownloadPath"
+          >
+            浏览
+          </el-button>
         </div>
       </div>
 
@@ -116,5 +139,11 @@ onMounted(async () => {
 
 .setting-control {
   flex-shrink: 0;
+}
+
+.path-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

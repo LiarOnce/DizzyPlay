@@ -29,4 +29,5 @@ base64 = "0.22"
 futures-util = "0.3"
 tauri-plugin-clipboard-manager = "2.3.2"
 zip = "2"
+tauri-plugin-dialog = "2.7.1"
 
