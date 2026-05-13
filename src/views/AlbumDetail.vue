@@ -34,6 +34,7 @@ import {
   isTauri,
   getAuthCredentials,
 } from "../utils/format.js";
+import { globalOffsets } from "../globalvar.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -154,17 +155,15 @@ async function loadAlbumDetail() {
     }
 
     // 加载评论
-    const commentData = await getDiscComments(discId.value, { l: 0, r: 10 });
-    if (commentData?.comments) {
-      comments.value = commentData.comments;
-      // 预加载评论头像
-      for (const comment of comments.value) {
-        if (comment.avatar) {
-          const key = `comment_${comment.id}`;
-          getCachedCoverUrl(comment.avatar).then((url) => {
-            coverCache[key] = url;
-          });
-        }
+    const commentData = await getDiscComments(discId.value, { l: 0, r: globalOffsets });
+    comments.value = commentData?.commit || [];
+    // 预加载评论头像
+    for (const comment of comments.value) {
+      if (comment.cover) {
+        const key = `comment_${comment.id}`;
+        getCachedCoverUrl(comment.cover).then((url) => {
+          coverCache[key] = url;
+        });
       }
     }
   } catch (err) {
@@ -225,7 +224,7 @@ function getAlbumCover() {
 }
 
 function getCommentAvatar(comment) {
-  return coverCache[`comment_${comment.id}`] || getCoverUrl(comment.avatar);
+  return coverCache[`comment_${comment.id}`] || getCoverUrl(comment.cover);
 }
 
 /**
@@ -350,6 +349,12 @@ function goBack() {
 function goToLabel() {
   if (album.value?.labelid) {
     router.push(`/label/${album.value.labelid}`);
+  }
+}
+
+function goToUser(userId) {
+  if (userId) {
+    router.push(`/user/${userId}`);
   }
 }
 
@@ -661,20 +666,17 @@ onUnmounted(() => {
         <div v-if="comments.length === 0" class="empty-state">
           <el-empty description="暂无评论" />
         </div>
-        <div v-else class="comment-list">
+          <div v-else class="comment-list">
           <div
             v-for="comment in comments"
             :key="comment.id"
             class="comment-item"
+            @click="goToUser(comment.id)"
           >
-            <el-avatar :size="36" :src="getCommentAvatar(comment)" />
+            <el-avatar :size="36" :src="getCommentAvatar(comment)" class="comment-avatar" />
             <div class="comment-body">
-              <span class="comment-author">{{
-                comment.author || comment.user_name
-              }}</span>
-              <p class="comment-content">
-                {{ comment.content || comment.text }}
-              </p>
+              <span class="comment-author">{{ comment.name }}</span>
+              <p class="comment-content">{{ comment.commit }}</p>
             </div>
           </div>
         </div>
@@ -952,6 +954,16 @@ onUnmounted(() => {
   border-radius: 8px;
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.comment-item:hover {
+  background: var(--el-fill-color-light);
+}
+
+.comment-avatar {
+  flex-shrink: 0;
 }
 
 .comment-body {
