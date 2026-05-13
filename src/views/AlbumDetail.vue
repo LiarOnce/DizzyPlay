@@ -671,11 +671,10 @@ onUnmounted(() => {
             v-for="comment in comments"
             :key="comment.id"
             class="comment-item"
-            @click="goToUser(comment.id)"
           >
-            <el-avatar :size="36" :src="getCommentAvatar(comment)" class="comment-avatar" />
+            <el-avatar :size="36" :src="getCommentAvatar(comment)" class="comment-avatar" @click="goToUser(comment.id)" />
             <div class="comment-body">
-              <span class="comment-author">{{ comment.name }}</span>
+              <span class="comment-author" @click="goToUser(comment.id)">{{ comment.name }}</span>
               <p class="comment-content">{{ comment.commit }}</p>
             </div>
           </div>
@@ -866,6 +865,7 @@ onUnmounted(() => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
 }
 
 .album-actions {
@@ -984,6 +984,7 @@ onUnmounted(() => {
   color: var(--el-text-color-regular);
   margin: 0;
   line-height: 1.5;
+  user-select: text;
 }
 
 /* ===== 空状态 ===== */
