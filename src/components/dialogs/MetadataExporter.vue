@@ -2,7 +2,7 @@
 import { ref, computed } from "vue";
 import { Loading, Document } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
-import { getDiscInfo } from "../services/api.js";
+import { getDiscInfo } from "../../services/api.js";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 const props = defineProps({

@@ -1,106 +1,15 @@
 <script setup>
-import { ref, onMounted } from "vue";
 import {
   Setting,
   DataAnalysis,
   InfoFilled,
-  Loading,
   Download,
 } from "@element-plus/icons-vue";
-import { isTauri } from "../utils/format.js";
-import { useSetting } from "../utils/settings.js";
-import CacheManager from "../components/CacheManager.vue";
-import aboutHtml from "/src/assets/about.html?raw";
-
-// ===== 通用设置 =====
-const {
-  value: use320kbps,
-  load: load320kbps,
-  save: save320kbps,
-} = useSetting("use320kbps", {
-  defaultValue: false,
-  localStorageKey: "settings_use320kbps",
-  fromStorage: (v) => v === "true",
-  toStorage: (v) => (v ? "true" : "false"),
-});
-
-const {
-  value: csrfToken,
-  load: loadCsrfToken,
-  save: saveCsrfToken,
-} = useSetting("csrfToken", { defaultValue: "" });
-
-const {
-  value: sessionId,
-  load: loadSessionId,
-  save: saveSessionId,
-} = useSetting("sessionid", { defaultValue: "" });
-
-const configLoaded = ref(false);
-
-function onUse320kbpsChange(val) {
-  use320kbps.value = val;
-  save320kbps();
-  window.dispatchEvent(
-    new CustomEvent("settings-changed", {
-      detail: { key: "use320kbps", value: val },
-    }),
-  );
-}
-
-function onCsrfTokenChange() {
-  saveCsrfToken();
-}
-
-function onSessionIdChange() {
-  saveSessionId();
-}
-
-// ===== 下载设置 =====
-const {
-  value: downloadPath,
-  load: loadDownloadPath,
-  save: saveDownloadPath,
-} = useSetting("downloadPath", { defaultValue: "" });
-
-const {
-  value: autoExtract,
-  load: loadAutoExtract,
-  save: saveAutoExtract,
-} = useSetting("autoExtract", {
-  defaultValue: false,
-  fromStorage: (v) => v === "true",
-  toStorage: (v) => (v ? "true" : "false"),
-});
-
-function onDownloadPathChange() {
-  saveDownloadPath();
-}
-
-function onAutoExtractChange(val) {
-  autoExtract.value = val;
-  saveAutoExtract();
-}
-
-// ===== 关于页面 =====
-const aboutContent = ref("");
-
-function loadAboutMd() {
-  aboutContent.value = aboutHtml || "";
-}
-
-// ===== 生命周期 =====
-onMounted(async () => {
-  await Promise.all([
-    load320kbps(),
-    loadCsrfToken(),
-    loadSessionId(),
-    loadDownloadPath(),
-    loadAutoExtract(),
-  ]);
-  configLoaded.value = true;
-  loadAboutMd();
-});
+import CacheManager from "../components/settings/CacheManager.vue";
+import GeneralSettings from "../components/settings/GeneralSettings.vue";
+import AuthSettings from "../components/settings/AuthSettings.vue";
+import DownloadSettings from "../components/settings/DownloadSettings.vue";
+import AboutPage from "../components/settings/AboutPage.vue";
 </script>
 
 <template>
@@ -118,28 +27,7 @@ onMounted(async () => {
             <span>通用</span>
           </span>
         </template>
-
-        <div class="tab-content">
-          <h3>通用设置</h3>
-          <div class="settings-list">
-            <div class="setting-item" v-if="configLoaded">
-              <div class="setting-info">
-                <span class="setting-title">使用 320Kbps 在线播放 (Beta)</span>
-                <span class="setting-desc"
-                  >这会消耗更多空间和流量，目前需要清空播放列表并重新添加才能生效</span
-                >
-              </div>
-              <div class="setting-control">
-                <el-switch v-model="use320kbps" @change="onUse320kbpsChange" />
-              </div>
-            </div>
-
-            <div v-if="!configLoaded" class="setting-item">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>加载配置中...</span>
-            </div>
-          </div>
-        </div>
+        <GeneralSettings />
       </el-tab-pane>
 
       <!-- 认证设置 -->
@@ -150,55 +38,7 @@ onMounted(async () => {
             <span>认证</span>
           </span>
         </template>
-
-        <div class="tab-content">
-          <h3>认证设置</h3>
-          <p>
-            由于缺少 API 的原因，如果需要通过 DizzyPlay 下载已购商品，请登录
-            <a href="https://www.dizzylab.net/albums/login/" target="_blank"
-              >Dizzylab 网页版</a
-            >
-            后使用<code>Ctrl+Shift+I</code>或<code>F12</code>快捷键，选择存储-Cookie并根据以下设置项的介绍填写。
-          </p>
-          <br />
-          <div class="settings-list">
-            <div class="setting-item" v-if="configLoaded">
-              <div class="setting-info">
-                <span class="setting-title">CSRF Token</span>
-                <span class="setting-desc"
-                  >用于需要 CSRF 验证的请求 (Cookie: csrftoken)</span
-                >
-              </div>
-              <div class="setting-control">
-                <el-input
-                  v-model="csrfToken"
-                  placeholder="请输入 CSRF Token"
-                  size="small"
-                  style="width: 320px"
-                  @change="onCsrfTokenChange"
-                />
-              </div>
-            </div>
-
-            <div class="setting-item" v-if="configLoaded">
-              <div class="setting-info">
-                <span class="setting-title">Session ID</span>
-                <span class="setting-desc"
-                  >用于下载认证的会话标识 (Cookie: sessionid)</span
-                >
-              </div>
-              <div class="setting-control">
-                <el-input
-                  v-model="sessionId"
-                  placeholder="请输入 Session ID"
-                  size="small"
-                  style="width: 320px"
-                  @change="onSessionIdChange"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <AuthSettings />
       </el-tab-pane>
 
       <!-- 下载设置 -->
@@ -209,39 +49,7 @@ onMounted(async () => {
             <span>下载</span>
           </span>
         </template>
-
-        <div class="tab-content">
-          <h3>下载设置</h3>
-          <div class="settings-list">
-            <div class="setting-item">
-              <div class="setting-info">
-                <span class="setting-title">下载保存路径</span>
-                <span class="setting-desc">下载的专辑文件将保存到此目录</span>
-              </div>
-              <div class="setting-control">
-                <el-input
-                  v-model="downloadPath"
-                  placeholder="默认：程序所在目录/downloads"
-                  size="small"
-                  style="width: 280px"
-                  @change="onDownloadPathChange"
-                />
-              </div>
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-info">
-                <span class="setting-title">下载后自动解压</span>
-                <span class="setting-desc">
-                  下载完成后自动解压 zip 压缩包并删除原文件
-                </span>
-              </div>
-              <div class="setting-control">
-                <el-switch v-model="autoExtract" @change="onAutoExtractChange" />
-              </div>
-            </div>
-          </div>
-        </div>
+        <DownloadSettings />
       </el-tab-pane>
 
       <!-- 数据管理 -->
@@ -265,9 +73,7 @@ onMounted(async () => {
           </span>
         </template>
 
-        <div class="tab-content">
-          <div class="about-content" v-html="aboutContent"></div>
-        </div>
+        <AboutPage />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -319,67 +125,5 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.tab-content {
-  padding: 0 16px;
-  height: 100%;
-  overflow-y: auto;
-}
 
-.tab-content h3 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--text-primary, #e0e0e0);
-}
-
-.settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.setting-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: var(--bg-secondary, #1e1e2e);
-  border-radius: 8px;
-  border: 1px solid var(--border-color, #2d2d3d);
-}
-
-.setting-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.setting-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-primary, #e0e0e0);
-}
-
-.setting-desc {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
-}
-
-.setting-control {
-  flex-shrink: 0;
-}
-
-.about-content {
-  padding: 16px;
-  background: var(--bg-secondary, #1e1e2e);
-  border-radius: 8px;
-  border: 1px solid var(--border-color, #2d2d3d);
-  min-height: 200px;
-  line-height: 1.8;
-}
-
-.about-content :deep(h1) {
-  color: var(--text-primary, #e0e0e0);
-  margin-bottom: 8px;
-}
 </style>

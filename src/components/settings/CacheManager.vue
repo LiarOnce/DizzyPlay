@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { Loading, Delete } from "@element-plus/icons-vue";
-import { isTauri, formatSizeMB as formatSize } from "../utils/format.js";
+import { isTauri, formatSizeMB as formatSize } from "../../utils/format.js";
 
 const datasSize = ref(0);
 const imagesSize = ref(0);

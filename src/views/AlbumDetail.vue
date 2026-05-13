@@ -28,7 +28,7 @@ import {
   unlockFreeDisc,
 } from "../services/api.js";
 import { downloadManager } from "../services/downloadManager.js";
-import MetadataExporter from "../components/MetadataExporter.vue";
+import MetadataExporter from "../components/dialogs/MetadataExporter.vue";
 import {
   formatDuration,
   isTauri,

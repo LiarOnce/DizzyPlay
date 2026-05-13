@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { User, Lock, Key } from "@element-plus/icons-vue";
-import { login } from "../stores/user.js";
+import { login } from "../../stores/user.js";
 
 const emit = defineEmits(["login-success"]);
 

@@ -16,7 +16,7 @@ import {
 import { useUser, initToken, fetchUserInfo, logout } from "../stores/user.js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCoverUrl, getCachedCoverUrl } from "../services/api.js";
-import LoginDialog from "./LoginDialog.vue";
+import LoginDialog from "./dialogs/LoginDialog.vue";
 
 const router = useRouter();
 const searchQuery = ref("");
