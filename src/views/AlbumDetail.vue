@@ -542,6 +542,7 @@ onUnmounted(() => {
               {{ tag }}
             </el-tag>
           </div>
+
           <div class="album-actions">
             <!-- 已拥有：添加到播放列表（下载商品除外） -->
             <el-button
@@ -637,6 +638,21 @@ onUnmounted(() => {
             }}</span>
           </div>
         </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">介绍</h2>
+        <div
+            class="album-descriptions"
+            v-if="album.disc_description || album.disc_description_2"
+          >
+            <p v-if="album.disc_description" class="album-description">
+              {{ album.disc_description }}
+            </p>
+            <p v-if="album.disc_description_2" class="album-description">
+              {{ album.disc_description_2 }}
+            </p>
+          </div>
       </div>
 
       <!-- 评论区域 -->
@@ -832,6 +848,22 @@ onUnmounted(() => {
 
 .album-tag {
   border-radius: 12px;
+}
+
+.album-descriptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.album-description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .album-actions {
