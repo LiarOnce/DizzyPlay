@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, reactive, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
 import {
   VideoPlay,
   VideoPause,
@@ -11,10 +12,13 @@ import {
   ArrowLeft,
   Loading,
   Document,
+  ArrowUp,
+  Opportunity,
 } from "@element-plus/icons-vue";
 import {
   getDiscInfo,
   getDiscComments,
+  getDiscBuyers,
   getCoverUrl,
   getCachedCoverUrl,
   saveCache,
@@ -22,19 +26,12 @@ import {
   getMp3Duration,
   getTrackDownloadUrl,
   loadUserConfig,
-  fetchDiscPageHtml,
-  parseDownloadLinks,
-  downloadFile,
   unlockFreeDisc,
   toggleLikeDisc,
 } from "../services/api.js";
-import { downloadManager } from "../services/downloadManager.js";
 import MetadataExporter from "../components/dialogs/MetadataExporter.vue";
-import {
-  formatDuration,
-  isTauri,
-  getAuthCredentials,
-} from "../utils/format.js";
+import DownloadDialog from "../components/dialogs/DownloadDialog.vue";
+import { formatDuration, isTauri } from "../utils/format.js";
 import { globalOffsets } from "../globalvar.js";
 
 const route = useRoute();
@@ -50,14 +47,14 @@ const isLiked = ref(false);
 // 320Kbps 播放设置
 const use320kbps = ref(false);
 
-// ===== 下载功能 =====
-const downloadLinks = ref([]);
-const downloadLoading = ref(false);
 const downloadDialogVisible = ref(false);
 const redeeming = ref(false);
 
-const downloadingIndex = ref(-1); // 正在下载的链接索引
-const downloadSavePath = ref("");
+// 购买者和支持者
+const buyers = ref([]);
+const boosters = ref([]);
+const buyersLoading = ref(false);
+const showAllBuyers = ref(false);
 
 // 图片缓存映射
 const coverCache = reactive({});
@@ -158,7 +155,10 @@ async function loadAlbumDetail() {
     }
 
     // 加载评论
-    const commentData = await getDiscComments(discId.value, { l: 0, r: globalOffsets });
+    const commentData = await getDiscComments(discId.value, {
+      l: 0,
+      r: globalOffsets,
+    });
     comments.value = commentData?.commit || [];
     // 预加载评论头像
     for (const comment of comments.value) {
@@ -168,6 +168,44 @@ async function loadAlbumDetail() {
           coverCache[key] = url;
         });
       }
+    }
+
+    // 加载购买者和支持者
+    buyersLoading.value = true;
+    try {
+      const buyersData = await getDiscBuyers(discId.value, {
+        l: 0,
+        r: globalOffsets,
+      });
+      buyers.value = buyersData?.buyers || [];
+      boosters.value = buyersData?.boosters || [];
+      // 预加载 buyers 头像（前 30 个，与 displayedBuyers 一致）
+      for (const buyer of buyers.value.slice(0, 30)) {
+        if (buyer.cover) {
+          const key = `buyer_${buyer.id}`;
+          getCachedCoverUrl(buyer.cover).then((url) => {
+            coverCache[key] = url;
+          });
+        }
+      }
+      // 预加载 boosters 头像
+      for (const booster of boosters.value) {
+        if (booster.cover) {
+          const key = `booster_${booster.id}`;
+          getCachedCoverUrl(booster.cover).then((url) => {
+            coverCache[key] = url;
+          });
+        }
+      }
+      console.log(
+        `[AlbumDetail] 加载到 ${buyers.value.length} 位购买者, ${boosters.value.length} 位支持者`,
+      );
+    } catch (err) {
+      console.warn("[AlbumDetail] 加载购买者信息失败:", err);
+      buyers.value = [];
+      boosters.value = [];
+    } finally {
+      buyersLoading.value = false;
     }
   } catch (err) {
     console.error("加载专辑详情失败:", err);
@@ -229,6 +267,18 @@ function getAlbumCover() {
 function getCommentAvatar(comment) {
   return coverCache[`comment_${comment.id}`] || getCoverUrl(comment.cover);
 }
+
+function getBuyerAvatar(buyer) {
+  return coverCache[`buyer_${buyer.id}`] || getCoverUrl(buyer.cover);
+}
+
+function getBoosterAvatar(booster) {
+  return coverCache[`booster_${booster.id}`] || getCoverUrl(booster.cover);
+}
+
+const displayedBuyers = computed(() => {
+  return showAllBuyers.value ? buyers.value : buyers.value.slice(0, 30);
+});
 
 /**
  * 获取曲目的播放 URL，如果启用 320Kbps 则通过 API 获取高音质链接
@@ -381,62 +431,6 @@ function goToUser(userId) {
   }
 }
 
-// ===== 下载功能 =====
-
-/**
- * 获取下载链接并显示下载对话框
- */
-async function showDownloadDialog() {
-  if (!album.value?.id) return;
-  downloadLoading.value = true;
-  downloadDialogVisible.value = true;
-  try {
-    if (isTauri) {
-      try {
-        const path = await loadUserConfig("downloadPath");
-        if (path) downloadSavePath.value = path;
-      } catch (e) {
-        console.warn("[AlbumDetail] 加载下载路径失败:", e);
-      }
-    }
-    const { csrfToken, sessionId } = await getAuthCredentials();
-    const html = await fetchDiscPageHtml(album.value.id, csrfToken, sessionId);
-    const links = await parseDownloadLinks(html);
-    downloadLinks.value = links;
-    console.log(`[AlbumDetail] 获取到 ${links.length} 个下载链接`);
-  } catch (err) {
-    console.error("[AlbumDetail] 获取下载链接失败:", err);
-    downloadLinks.value = [];
-  } finally {
-    downloadLoading.value = false;
-  }
-}
-
-/**
- * 下载指定格式的文件
- * 通过全局 DownloadManager 添加下载任务（支持后台下载）
- */
-function startDownload(index) {
-  const link = downloadLinks.value[index];
-  if (!link) return;
-
-  // 使用全局下载管理器（组件卸载后下载仍在后台继续）
-  downloadManager.addTask(
-    link.url,
-    link.label,
-    album.value?.id || "",
-    album.value?.title || "",
-  );
-
-  // 关闭下载对话框
-  downloadDialogVisible.value = false;
-}
-
-/**
- * 检测 Tauri 环境
- */
-import { ElMessage } from "element-plus";
-
 /**
  * 通过外部浏览器打开链接
  */
@@ -495,6 +489,22 @@ watch(
     }
   },
 );
+
+// 展开全部购买者时，预加载剩余头像
+watch(showAllBuyers, (expanded) => {
+  if (expanded && buyers.value.length > 30) {
+    for (const buyer of buyers.value.slice(30)) {
+      if (buyer.cover) {
+        const key = `buyer_${buyer.id}`;
+        if (!coverCache[key]) {
+          getCachedCoverUrl(buyer.cover).then((url) => {
+            coverCache[key] = url;
+          });
+        }
+      }
+    }
+  }
+});
 
 onUnmounted(() => {
   if (refreshHandler) {
@@ -625,7 +635,7 @@ onUnmounted(() => {
               v-if="album.ihavethis"
               type="success"
               round
-              @click="showDownloadDialog"
+              @click="downloadDialogVisible = true"
             >
               下载
             </el-button>
@@ -671,16 +681,66 @@ onUnmounted(() => {
       <div class="section">
         <h2 class="section-title">介绍</h2>
         <div
-            class="album-descriptions"
-            v-if="album.disc_description || album.disc_description_2"
+          class="album-descriptions"
+          v-if="album.disc_description || album.disc_description_2"
+        >
+          <p v-if="album.disc_description" class="album-description">
+            {{ album.disc_description }}
+          </p>
+          <p v-if="album.disc_description_2" class="album-description">
+            {{ album.disc_description_2 }}
+          </p>
+        </div>
+      </div>
+
+      <!-- 支持者区域 -->
+      <div v-if="boosters.length > 0" class="section">
+        <h2 class="section-title">
+          <el-icon><Opportunity /></el-icon> BOOST ({{ boosters.length }})
+        </h2>
+        <div class="booster-list">
+          <div
+            v-for="booster in boosters"
+            :key="booster.id"
+            class="booster-item"
+            @click="goToUser(booster.id)"
           >
-            <p v-if="album.disc_description" class="album-description">
-              {{ album.disc_description }}
-            </p>
-            <p v-if="album.disc_description_2" class="album-description">
-              {{ album.disc_description_2 }}
-            </p>
+            <el-avatar :size="40" :src="getBoosterAvatar(booster)" />
+            <div class="booster-info">
+              <span class="booster-name">{{ booster.name }}</span>
+              <span class="booster-amount"
+                ><el-icon><ArrowUp /></el-icon>{{ booster.boost }}%</span
+              >
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 购买者区域 -->
+      <div v-if="buyers.length > 0" class="section">
+        <h2 class="section-title">
+          支持 {{ album.title }} 的人 ({{ buyers.length }})
+        </h2>
+        <div v-if="buyersLoading" class="buyers-loading">
+          <el-icon class="is-loading" :size="20"><Loading /></el-icon>
+          <span>加载中...</span>
+        </div>
+        <div v-else class="buyer-grid">
+          <div
+            v-for="buyer in displayedBuyers"
+            :key="buyer.id"
+            class="buyer-item"
+            @click="goToUser(buyer.id)"
+          >
+            <el-avatar :size="36" :src="getBuyerAvatar(buyer)" />
+            <span class="buyer-name">{{ buyer.name }}</span>
+          </div>
+        </div>
+        <div v-if="buyers.length > 30 && !showAllBuyers" class="buyers-more">
+          <el-button text size="small" @click="showAllBuyers = true">
+            展开更多 ({{ buyers.length - 30 }})
+          </el-button>
+        </div>
       </div>
 
       <!-- 评论区域 -->
@@ -689,15 +749,22 @@ onUnmounted(() => {
         <div v-if="comments.length === 0" class="empty-state">
           <el-empty description="暂无评论" />
         </div>
-          <div v-else class="comment-list">
+        <div v-else class="comment-list">
           <div
             v-for="comment in comments"
             :key="comment.id"
             class="comment-item"
           >
-            <el-avatar :size="36" :src="getCommentAvatar(comment)" class="comment-avatar" @click="goToUser(comment.id)" />
+            <el-avatar
+              :size="36"
+              :src="getCommentAvatar(comment)"
+              class="comment-avatar"
+              @click="goToUser(comment.id)"
+            />
             <div class="comment-body">
-              <span class="comment-author" @click="goToUser(comment.id)">{{ comment.name }}</span>
+              <span class="comment-author" @click="goToUser(comment.id)">{{
+                comment.name
+              }}</span>
               <p class="comment-content">{{ comment.commit }}</p>
             </div>
           </div>
@@ -706,40 +773,12 @@ onUnmounted(() => {
     </template>
 
     <!-- 下载对话框 -->
-    <el-dialog
+    <DownloadDialog
+      v-if="album"
       v-model="downloadDialogVisible"
-      title="选择下载格式"
-      width="420px"
-      :close-on-click-modal="false"
-    >
-      <div v-if="downloadLoading" class="download-loading">
-        <el-icon class="is-loading" :size="24"><Loading /></el-icon>
-        <span>正在获取下载链接...</span>
-      </div>
-      <div v-else-if="downloadLinks.length === 0" class="download-empty">
-        <el-empty description="暂无可用下载链接，请检查 CSRF Token 和 SessionID" />
-      </div>
-      <div v-else class="download-list">
-        <div
-          v-for="(link, index) in downloadLinks"
-          :key="index"
-          class="download-item"
-        >
-          <div class="download-info">
-            <span class="download-label">{{ link.label }}</span>
-          </div>
-          <el-button
-            type="primary"
-            size="small"
-            :loading="downloadingIndex === index"
-            :disabled="downloadingIndex >= 0"
-            @click="startDownload(index)"
-          >
-            下载
-          </el-button>
-        </div>
-      </div>
-    </el-dialog>
+      :album-id="album.id"
+      :album-title="album.title"
+    />
   </div>
 </template>
 
@@ -1020,42 +1059,89 @@ onUnmounted(() => {
   min-height: 100px;
 }
 
-/* ===== 下载对话框 ===== */
-.download-loading {
+/* ===== 支持者列表 ===== */
+.booster-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.booster-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px;
-  color: var(--el-text-color-secondary);
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.download-empty {
-  padding: 20px;
+.booster-item:hover {
+  background: var(--el-fill-color);
 }
 
-.download-list {
+.booster-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.booster-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.booster-amount {
+  font-size: 12px;
+  color: var(--el-color-warning);
+  font-weight: 600;
+}
+
+/* ===== 购买者列表 ===== */
+.buyers-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  padding: 12px 0;
+}
+
+.buyer-grid {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.download-item {
+.buyer-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 20px;
   background: var(--el-fill-color-light);
-  border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  max-width: 160px;
 }
 
-.download-info {
-  flex: 1;
+.buyer-item:hover {
+  background: var(--el-fill-color);
 }
 
-.download-label {
-  font-size: 14px;
+.buyer-name {
+  font-size: 12px;
   color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.buyers-more {
+  margin-top: 8px;
+  text-align: center;
 }
 </style>
