@@ -36,7 +36,7 @@ const menuItems = [
     title: "我的音乐",
     children: [
       { path: "/purchased", name: "已购", icon: ShoppingCart },
-      { path: "/favorites", name: "+2db", icon: StarFilled },
+      { path: "/favorites", name: "+2dB", icon: StarFilled },
       { path: "/following", name: "关注", icon: User },
       { path: "/downloads", name: "已下载", icon: Download },
     ],

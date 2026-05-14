@@ -26,6 +26,7 @@ import {
   parseDownloadLinks,
   downloadFile,
   unlockFreeDisc,
+  toggleLikeDisc,
 } from "../services/api.js";
 import { downloadManager } from "../services/downloadManager.js";
 import MetadataExporter from "../components/dialogs/MetadataExporter.vue";
@@ -126,6 +127,7 @@ async function loadAlbumDetail() {
     if (cachedData) {
       console.log(`[AlbumDetail] 使用缓存数据: ${discId.value}`);
       album.value = cachedData.disc || cachedData;
+      isLiked.value = album.value.ilikeit || false;
       tracks.value = cachedData.tracks || cachedData.songs || [];
       // 缓存中已有时长信息，直接使用
       if (tracks.value.length > 0 && tracks.value[0]._duration) {
@@ -139,6 +141,7 @@ async function loadAlbumDetail() {
       const data = await getDiscInfo(discId.value);
       if (data) {
         album.value = data.disc || data;
+        isLiked.value = album.value.ilikeit || false;
         tracks.value = data.tracks || data.songs || [];
         // 保存到缓存
         saveCache(cacheKey, data);
@@ -310,8 +313,28 @@ async function addAllToPlaylist() {
   );
 }
 
-function toggleLike() {
-  isLiked.value = !isLiked.value;
+async function toggleLike() {
+  if (!album.value?.id) return;
+  try {
+    const result = await toggleLikeDisc(album.value.id);
+    if (result && typeof result.ilikeit === "boolean") {
+      isLiked.value = result.ilikeit;
+      album.value.likes = result.likes ?? album.value.likes;
+      // ElMessage.success(isLiked.value ? "+2dB 成功" : "已取消");
+      // 更新缓存
+      const cacheKey = `album_detail_${discId.value}`;
+      const cachedData = await loadCache(cacheKey);
+      if (cachedData) {
+        const disc = cachedData.disc || cachedData;
+        disc.ilikeit = result.ilikeit;
+        disc.likes = result.likes ?? disc.likes;
+        await saveCache(cacheKey, cachedData);
+      }
+    }
+  } catch (err) {
+    console.error("[AlbumDetail] +2dB 操作失败:", err);
+    ElMessage.error("失败，请稍后重试");
+  }
 }
 
 /**

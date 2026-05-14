@@ -647,6 +647,23 @@ export async function unlockFreeDisc(discId) {
 }
 
 // ============================================================
+// 点赞 / 取消点赞 (+2dB)
+// ============================================================
+
+export async function toggleLikeDisc(discId) {
+  const token = await getTokenForApi();
+  const body = new URLSearchParams();
+  body.set("token", token);
+  body.set("discid", discId);
+  return apiPost(
+    "ilikethisornot",
+    body.toString(),
+    "application/x-www-form-urlencoded",
+    "点赞",
+  );
+}
+
+// ============================================================
 // GET API 端点（所有页面数据请求）
 // ============================================================
 

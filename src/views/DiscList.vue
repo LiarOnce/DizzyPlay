@@ -73,11 +73,11 @@ const pageConfig = {
     fetcher: () => getLabels({ l: 0, r: globalOffsets }),
   },
   "/purchased": {
-    title: "已购音乐",
+    title: "已购内容",
     fetcher: () => getMyDiscs({ l: 0, r: globalOffsets }),
   },
   "/favorites": {
-    title: "我的收藏",
+    title: "+2dB",
     fetcher: () => getMyLikes({ l: 0, r: globalOffsets }),
   },
   "/following": {
