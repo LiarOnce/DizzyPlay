@@ -12,6 +12,11 @@ const routes = [
     component: () => import("./views/SearchResults.vue"),
   },
   {
+    path: "/tag/:tag",
+    name: "TagResults",
+    component: () => import("./views/TagResults.vue"),
+  },
+  {
     path: "/album/:id",
     name: "AlbumDetail",
     component: () => import("./views/AlbumDetail.vue"),

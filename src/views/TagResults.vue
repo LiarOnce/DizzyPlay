@@ -2,7 +2,7 @@
 import { ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { StarFilled, Loading, ArrowLeft } from "@element-plus/icons-vue";
-import { search, getCoverUrl } from "../services/api.js";
+import { getTags, getCoverUrl } from "../services/api.js";
 import { globalOffsets } from "../globalvar.js";
 import { useCoverCache } from "../composables/useCoverCache.js";
 import { useAppRefresh } from "../composables/useAppRefresh.js";
@@ -11,13 +11,13 @@ import { usePagination } from "../composables/usePagination.js";
 const route = useRoute();
 const router = useRouter();
 
-const query = ref("");
+const tag = ref("");
 const results = ref([]);
 const loading = ref(false);
 const error = ref("");
 
 const { cacheVisibleCovers, getCover: getResultCover } =
-  useCoverCache("result");
+  useCoverCache("tagresult");
 
 const {
   currentPage,
@@ -27,21 +27,21 @@ const {
   resetPage,
 } = usePagination(results, 20);
 
-async function doSearch(keyword) {
-  if (!keyword?.trim()) {
+async function doSearch(tagName) {
+  if (!tagName?.trim()) {
     results.value = [];
     return;
   }
   loading.value = true;
   error.value = "";
   try {
-    const data = await search(keyword, { l: 0, r: globalOffsets });
+    const data = await getTags({ tag: tagName, l: 0, r: globalOffsets });
     results.value = data?.discs || [];
     resetPage();
-    await cacheVisibleCovers(results.value, { logLabel: "SearchResults" });
+    await cacheVisibleCovers(results.value, { logLabel: "TagResults" });
   } catch (err) {
-    console.error("搜索失败:", err);
-    error.value = "搜索失败，请检查网络连接";
+    console.error("标签搜索失败:", err);
+    error.value = "标签搜索失败，请检查网络连接";
   } finally {
     loading.value = false;
   }
@@ -56,46 +56,46 @@ function goBack() {
 }
 
 watch(
-  () => route.query.q,
-  (newQ) => {
-    if (newQ) {
-      query.value = newQ;
-      doSearch(newQ);
+  () => route.params.tag,
+  (newTag) => {
+    if (newTag) {
+      tag.value = newTag;
+      doSearch(newTag);
     }
   },
 );
 
 useAppRefresh(async () => {
-  if (query.value?.trim()) doSearch(query.value);
+  if (tag.value?.trim()) doSearch(tag.value);
 });
 
-if (route.query.q) {
-  query.value = route.query.q;
-  doSearch(route.query.q);
+if (route.params.tag) {
+  tag.value = route.params.tag;
+  doSearch(route.params.tag);
 }
 </script>
 
 <template>
-  <div class="search-results">
+  <div class="tag-results">
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-state">
       <el-icon class="loading-icon" :size="32"><Loading /></el-icon>
-      <span>搜索中...</span>
+      <span>加载中...</span>
     </div>
 
     <!-- 错误状态 -->
     <div v-else-if="error" class="error-state">
       <el-result icon="error" :title="error" sub-title="请检查后重试">
         <template #extra>
-          <el-button type="primary" @click="doSearch(query)">重试</el-button>
+          <el-button type="primary" @click="doSearch(tag)">重试</el-button>
         </template>
       </el-result>
     </div>
 
-    <!-- 搜索结果 -->
+    <!-- 标签结果 -->
     <template v-else>
-      <div v-if="query && results.length === 0 && !loading" class="empty-state">
-        <el-empty :description="`未找到与「${query}」相关的结果`" />
+      <div v-if="tag && results.length === 0 && !loading" class="empty-state">
+        <el-empty :description="`未找到标签「${tag}」相关的结果`" />
       </div>
 
       <div v-else-if="results.length > 0" class="results-section">
@@ -104,7 +104,7 @@ if (route.query.q) {
           <el-button text :icon="ArrowLeft" @click="goBack">返回</el-button>
         </div>
         <div class="results-header">
-          <h2 class="section-title">搜索结果 ({{ results.length }})</h2>
+          <h2 class="section-title">标签「{{ tag }}」({{ results.length }})</h2>
         </div>
         <div class="results-grid">
           <el-card
@@ -143,15 +143,15 @@ if (route.query.q) {
         </div>
       </div>
 
-      <div v-else-if="!query" class="empty-state">
-        <el-empty description="输入关键词开始搜索" />
+      <div v-else-if="!tag" class="empty-state">
+        <el-empty description="选择标签开始浏览" />
       </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.search-results {
+.tag-results {
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;

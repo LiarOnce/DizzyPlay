@@ -431,6 +431,12 @@ function goToUser(userId) {
   }
 }
 
+function goToTag(tagName) {
+  if (tagName) {
+    router.push(`/tag/${encodeURIComponent(tagName)}`);
+  }
+}
+
 /**
  * 通过外部浏览器打开链接
  */
@@ -576,6 +582,7 @@ onUnmounted(() => {
               :key="tag"
               size="small"
               class="album-tag"
+              @click="goToTag(tag)"
             >
               {{ tag }}
             </el-tag>
@@ -911,6 +918,12 @@ onUnmounted(() => {
 
 .album-tag {
   border-radius: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.album-tag:hover {
+  opacity: 0.8;
 }
 
 .album-descriptions {
