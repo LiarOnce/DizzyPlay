@@ -14,12 +14,13 @@ DizzyPlay 是一个基于 **Tauri v2** 的桌面客户端，为 [dizzylab](https
 | 前端框架  | Vue 3 (Composition API)   | `<script setup>` + `ref`/`computed`/`watch`/`reactive`                 |
 | UI 库     | Element Plus              | `el-button`, `el-card`, `el-dialog`, `el-progress`, `el-pagination` 等 |
 | 图标      | `@element-plus/icons-vue` | 全局注册，模板中直接使用 `<el-icon><Headset /></el-icon>`              |
-| 路由      | vue-router 4              | 懒加载路由，`keep-alive` 缓存 HomePage 和 DiscList                     |
+| 路由      | vue-router 5              | 懒加载路由，`keep-alive` 缓存 HomePage 和 DiscList                     |
 | 状态管理  | 无 Pinia/Vuex             | 使用 `reactive` + 模块级单例 + 自定义事件                              |
-| 构建      | Vite 6                    | 开发服务器代理 `/apis/` `/cdn/` `/streaming/` 到 dizzylab              |
+| 构建      | Vite 8                    | 开发服务器代理 `/apis/` `/cdn/` `/streaming/` 到 dizzylab              |
 | 包管理    | pnpm                      |                                                                        |
-| Rust 后端 | reqwest + tokio           | HTTP 代理、文件缓存、MP3 时长解析、流式下载                            |
+| Rust 后端 | reqwest + tokio           | HTTP 代理、文件缓存、MP3 时长解析、流式下载、ZIP 解压                  |
 | 序列化    | serde + serde_json        | Rust ↔ JS 数据交换                                                     |
+| Tauri 插件| dialog / opener / clipboard-manager | 系统对话框、打开链接、剪贴板操作                               |
 
 ### 结构
 
@@ -35,14 +36,21 @@ DizzyPlay/
 │   ├── main.js                 # 应用入口：挂载 Vue + Element Plus + 日志
 │   ├── App.vue                 # 根组件：TopNavbar + SidebarNav + <router-view> + PlayerBar
 │   ├── router.js               # 路由定义（懒加载）
-│   ├── globalvar.js            # 全局常量（globalOffsets = 2000, 当 API 需要 `r: offset` 时直接使用该全局常量）
+│   ├── globalvar.js            # 全局常量（globalOffsets = 2000）
 │   │
 │   ├── components/             # 可复用组件
 │   │   ├── TopNavbar.vue       # 顶部导航栏：搜索、用户头像、窗口控制、主题切换
 │   │   ├── SidebarNav.vue      # 左侧侧边栏：导航菜单（可折叠）
 │   │   ├── PlayerBar.vue       # 底部播放控制栏：播放/暂停、进度条、播放列表
-│   │   ├── LoginDialog.vue     # 登录对话框
-│   │   └── MetadataExporter.vue # 元数据导出工具（EAC/Mp3Tag/Kid3 格式）
+│   │   └── dialogs/
+│   │       ├── LoginDialog.vue       # 登录对话框
+│   │       └── MetadataExporter.vue  # 元数据导出工具（EAC/Mp3Tag/Kid3 格式）
+│   │   └── settings/
+│   │       ├── AboutPage.vue         # 关于页面
+│   │       ├── AuthSettings.vue      # 额外认证设置 (CSRF Token / Session ID)
+│   │       ├── CacheManager.vue      # 缓存管理
+│   │       ├── DownloadSettings.vue  # 下载设置
+│   │       └── GeneralSettings.vue   # 通用设置
 │   │
 │   ├── views/                  # 页面组件
 │   │   ├── HomePage.vue        # 首页：轮播图 + 数字专辑网格（分页）
@@ -55,6 +63,11 @@ DizzyPlay/
 │   │   ├── SettingsPage.vue    # 设置页面（下载路径、Cookie、320Kbps 等）
 │   │   └── RedeemPage.vue      # 兑换码页面
 │   │
+│   ├── composables/            # Vue 组合式函数
+│   │   ├── useAppRefresh.js    # app-refresh 事件生命周期封装
+│   │   ├── useCoverCache.js    # 封面图片响应式缓存（懒加载 + 去重）
+│   │   └── usePagination.js    # 标准分页逻辑（pageSize、自动滚动到顶部）
+│   │
 │   ├── services/               # 服务层
 │   │   ├── api.js              # API 封装：GET/POST、缓存、图片代理、下载、HTML 抓取
 │   │   ├── downloadManager.js  # 全局下载管理器（后台下载、暂停/续传）
@@ -63,6 +76,10 @@ DizzyPlay/
 │   │
 │   ├── stores/
 │   │   └── user.js             # 用户状态：Token、登录/登出、用户信息
+│   │
+│   ├── utils/
+│   │   ├── format.js           # 格式化工具：时长、大小、isTauri、Cookie 构建
+│   │   └── settings.js         # useSetting 组合式函数（Tauri/浏览器配置统一抽象）
 │   │
 │   └── styles/
 │       ├── variables.css       # CSS 变量（主题色、间距、过渡）
@@ -80,11 +97,13 @@ DizzyPlay/
 │           ├── api.rs          # HTTP 代理（GET/POST/图片/音乐缓存）
 │           ├── cache.rs        # 文件缓存（JSON/图片/音乐）
 │           ├── download.rs     # 下载引擎（流式下载、暂停/续传、进度推送）
+│           ├── extract.rs      # ZIP 压缩包解压（路径遍历安全检查）
 │           ├── html_proxy.rs   # HTML 页面代理抓取
 │           ├── log.rs          # 日志文件写入
 │           ├── music_utils.rs  # MP3 功能函数 [时长解析（Xing/VBRI 头部）]
 │           ├── playlist.rs     # 播放列表持久化
-│           └── user_configs.rs # 用户配置读写（config.json）
+│           ├── user_configs.rs # 用户配置读写（config.json）
+│           └── utils.rs        # Rust 共享工具：Cookie 构建、客户端创建、路径处理
 │
 └── docs/                       # 文档
     ├── dizzylab-api-doc.md     # dizzylab API 文档
@@ -143,6 +162,13 @@ pub async fn command_name(param1: String, param2: String) -> Result<String, Stri
 | 图片缓存      | `cache/images/` | 封面、头像                   | `save_image_cache` / `load_image_cache`                          |
 | 音乐缓存      | `cache/music/`  | 流式音频文件                 | `save_music_cache` / `load_music_cache`                          |
 
+**辅助命令**：
+
+| 命令                  | 模块       | 说明             |
+| --------------------- | ---------- | ---------------- |
+| `get_cache_dir_size`  | `cache.rs` | 计算缓存总大小   |
+| `clear_cache_dir`     | `cache.rs` | 清空全部缓存目录 |
+
 **前端缓存 API**（在 [`src/services/api.js`](src/services/api.js:81) 中封装）：
 
 ```javascript
@@ -195,29 +221,32 @@ AlbumDetail.vue
 - [`src-tauri/src/modules/download.rs`](src-tauri/src/modules/download.rs:1) — Rust 下载引擎
 - [`src/views/DownloadPage.vue`](src/views/DownloadPage.vue:1) — 下载管理 UI
 
+**下载相关 Tauri 命令**：
+
+| 命令                  | 模块          | 说明                   |
+| --------------------- | ------------- | ---------------------- |
+| `download_file`       | `download.rs` | 流式下载（支持续传）   |
+| `cancel_download`     | `download.rs` | 取消正在进行的下载     |
+| `open_download_folder`| `download.rs` | 在系统文件管理器中打开下载目录 |
+| `extract_archive`     | `extract.rs`  | ZIP 压缩包解压（带路径遍历安全检查） |
+
 ### 6. 分页与封面懒加载
 
-列表页（HomePage, DiscList）使用 **前端分页** + **封面懒缓存**：
+列表页（HomePage, DiscList）使用 **前端分页** + **封面懒缓存**，逻辑封装在 `composables/` 中：
 
 ```javascript
-const pageSize = 20;
-const currentPage = ref(1);
+import { usePagination } from "../composables/usePagination.js";
+import { useCoverCache } from "../composables/useCoverCache.js";
 
-const paginatedDiscs = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return discs.value.slice(start, start + pageSize);
-});
+const { currentPage, paginatedItems, handlePageChange } = usePagination(discs, 20);
+const { coverCache, cacheVisibleCovers, getCover } = useCoverCache("disc");
 
 // 仅缓存当前分页可见的封面
-watch(
-  paginatedDiscs,
-  (newItems) => {
-    if (newItems && newItems.length > 0) {
-      cacheVisibleCovers(newItems);
-    }
-  },
-  { immediate: false },
-);
+watch(paginatedItems, (newItems) => {
+  if (newItems && newItems.length > 0) {
+    cacheVisibleCovers(newItems);
+  }
+}, { immediate: false });
 ```
 
 ### 7. keep-alive 缓存策略
@@ -241,6 +270,48 @@ watch(
 - **步骤 1**：提取 `tab-pane#album` 内容区域（排除导航栏、页脚）
 - **步骤 2**：匹配 `card-group > card > card-body + card-footer` DOM 结构提取唱片信息
 - **步骤 3**：回退匹配社团条目（`/l/{name}` 结构）
+
+### 9. 组合式函数 (composables)
+
+前端复用逻辑封装在 [`src/composables/`](src/composables/) 中：
+
+#### `usePagination(items, pageSize = 20)`
+
+标准前端分页逻辑，返回 `currentPage`、`paginatedItems`、`totalPages`、`handlePageChange`（自动滚动到顶部）、`resetPage`。
+
+#### `useCoverCache(prefix)`
+
+响应式封面缓存，支持懒加载和去重。返回 `coverCache`（响应式对象）、`cacheVisibleCovers(items, opts)`（批量缓存）、`getCover(item, opts)`（获取缓存或回退 URL）。
+
+#### `useAppRefresh(handler)`
+
+封装 `app-refresh` 自定义事件的生命周期管理，自动在 `onMounted` 注册、`onUnmounted` 卸载。
+
+### 10. 工具模块 (utils)
+
+#### `src/utils/format.js`
+
+- `formatDuration(seconds)` — 秒 → `mm:ss`
+- `formatSize(bytes)` / `formatSizeMB(bytes)` — 字节 → 人类可读大小
+- `isTauri` — Tauri 环境检测常量（多处复用，无需重复内联判断）
+- `buildCookieHeader(csrfToken, sessionId)` — 拼接 Cookie 字符串
+- `getAuthCredentials()` — 异步获取 CSRF Token 和 Session ID（优先 Tauri config，回退 localStorage）
+
+#### `src/utils/settings.js` — `useSetting(key, options)`
+
+Tauri/浏览器双环境的配置统一抽象：
+
+```javascript
+const { value, load, save } = useSetting("use320kbps", {
+  defaultValue: false,
+  fromStorage: (v) => v === "true",
+  toStorage: (v) => String(v),
+});
+
+await load();   // 从 Tauri config.json 或 localStorage 加载
+value.value = true;
+await save();   // 持久化
+```
 
 ---
 
@@ -287,7 +358,10 @@ watch(
 ### 添加 API 端点
 
 1. 在 [`src/services/api.js`](src/services/api.js:545) 中使用 `apiGet()` 或 `apiPost()` 封装
+   - `apiGet(endpoint, params)` — GET 请求，参数自动拼接到 URL
+   - `apiPost(endpoint, body, contentType, label)` — POST 请求，支持 JSON / form-urlencoded
 2. 如果需要 Rust 代理，在 [`src-tauri/src/modules/api.rs`](src-tauri/src/modules/api.rs:26) 中已有通用 `proxy_api_get` 和 `proxy_api_post`
+3. 将封装好的函数通过 `export` 导出，供页面组件直接导入使用
 
 ---
 
@@ -314,6 +388,10 @@ watch(
 - **不要**在非 Tauri 环境调用 `invoke`（先检查 `isTauri`）
 - 列表页的 `watch(() => route.path, ...)` 用于处理路由变化，但 `keep-alive` 缓存的组件不会重新 `onMounted`
 - UserDetail 组件复用（相同路由参数）时，`onMounted` 不触发，需通过缓存恢复状态
+- `isTauri` 检测优先从 `src/utils/format.js` 导入复用，避免各处重复内联判断
+- 配置持久化优先使用 `useSetting()`（`src/utils/settings.js`），它会自动处理 Tauri/浏览器双环境
+- Vite 配置注入全局常量 `__APP_VERSION__`（格式 `"${pkg.version}+${gitCommit}"`）
+- 开发服务器额外代理 `/streaming/` 到 `streaming.dizzylab.net`，解决音频流 CORS 问题
 
 ### 4. 构建与运行
 
