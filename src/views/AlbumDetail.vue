@@ -866,6 +866,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
+  -webkit-user-select: text; /* For Safari and Webkit2GTK */
 }
 
 .album-actions {
@@ -985,6 +986,7 @@ onUnmounted(() => {
   margin: 0;
   line-height: 1.5;
   user-select: text;
+  -webkit-user-select: text; /* For Safari and Webkit2GTK */
 }
 
 /* ===== 空状态 ===== */

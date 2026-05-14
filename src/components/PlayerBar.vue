@@ -8,7 +8,7 @@ import {
   Right,
   Rank,
   Refresh,
-  Mute,
+  Bell,
   MuteNotification,
   List,
   Delete,
@@ -68,8 +68,8 @@ const formattedDuration = computed(() => {
 });
 
 const volumeIcon = computed(() => {
-  if (isMuted.value || volume.value === 0) return Mute;
-  return MuteNotification;
+  if (isMuted.value || volume.value === 0) return MuteNotification;
+  return Bell;
 });
 
 const playModeIcon = computed(() => {
