@@ -3,9 +3,7 @@
  *        在浏览器环境下不会有任何行为
  */
 
-// 检测是否在 Tauri 环境中
-const isTauri =
-  typeof window !== "undefined" && window.__TAURI_INTERNALS__ !== undefined;
+import { isTauri } from "../utils/format.js";
 
 /**
  * 通过 Tauri invoke 调用 Rust 后端的 append_log 命令

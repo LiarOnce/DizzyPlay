@@ -11,13 +11,7 @@ const PLACEHOLDER_IMAGE =
  */
 const tauriCoverCache = new Map();
 
-import { buildCookieHeader } from "../utils/format.js";
-
-// 检测是否在 Tauri 环境中
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
+import { buildCookieHeader, isTauri } from "../utils/format.js";
 
 // JSON 数据缓存有效期（1天）
 const CACHE_MAX_AGE_SECS = 86400;

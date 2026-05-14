@@ -441,7 +441,7 @@ import { ElMessage } from "element-plus";
  * 通过外部浏览器打开链接
  */
 function openInBrowser(url) {
-  if (window.__TAURI_INTERNALS__) {
+  if (isTauri) {
     window.__TAURI_INTERNALS__.invoke("plugin:opener|open_url", { url });
   } else {
     window.open(url, "_blank");

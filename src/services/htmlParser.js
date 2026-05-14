@@ -6,11 +6,7 @@
  * - https://www.dizzylab.net/u/{uid}/following/（关注，用户的关注列表）
  */
 
-// 检测是否在 Tauri 环境中
-const isTauri =
-  typeof window !== "undefined" &&
-  window.__TAURI_INTERNALS__ &&
-  typeof window.__TAURI_INTERNALS__.invoke === "function";
+import { isTauri } from "../utils/format.js";
 
 /**
  * 通过 Rust 后端代理获取用户页面的 HTML 内容

@@ -16,6 +16,7 @@ import {
 import { useUser, initToken, fetchUserInfo, logout } from "../stores/user.js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCoverUrl, getCachedCoverUrl } from "../services/api.js";
+import { isTauri } from "../utils/format.js";
 import LoginDialog from "./dialogs/LoginDialog.vue";
 
 const router = useRouter();
@@ -75,7 +76,7 @@ async function handleLogout() {
 function openUserSettings() {
   if (!userInfo.id) return;
   const url = `https://www.dizzylab.net/u/${userInfo.id}/options/`;
-  if (window.__TAURI_INTERNALS__) {
+  if (isTauri) {
     window.__TAURI_INTERNALS__.invoke("plugin:opener|open_url", { url });
   } else {
     window.open(url, "_blank");
