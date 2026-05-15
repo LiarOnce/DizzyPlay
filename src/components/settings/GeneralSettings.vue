@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { Loading } from "@element-plus/icons-vue";
+import { Loading, FolderOpened } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 import { useSetting } from "../../utils/settings.js";
+import { isTauri } from "../../utils/format.js";
 
 const {
   value: use320kbps,
@@ -30,6 +32,19 @@ onMounted(async () => {
   await load320kbps();
   configLoaded.value = true;
 });
+
+async function openDataDir() {
+  if (!isTauri) {
+    ElMessage.info("浏览器模式下不支持此操作");
+    return;
+  }
+  try {
+    await window.__TAURI_INTERNALS__.invoke("open_user_data_dir");
+  } catch (err) {
+    console.error("打开用户数据目录失败:", err);
+    ElMessage.error("打开用户数据目录失败");
+  }
+}
 </script>
 
 <template>
@@ -45,6 +60,18 @@ onMounted(async () => {
         </div>
         <div class="setting-control">
           <el-switch v-model="use320kbps" @change="onUse320kbpsChange" />
+        </div>
+      </div>
+
+      <div class="setting-item" v-if="configLoaded">
+        <div class="setting-info">
+          <span class="setting-title">用户数据目录</span>
+          <span class="setting-desc">缓存、配置文件等用户数据的存储位置</span>
+        </div>
+        <div class="setting-control">
+          <el-button size="small" :icon="FolderOpened" @click="openDataDir">
+            打开目录
+          </el-button>
         </div>
       </div>
 

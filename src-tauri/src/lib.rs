@@ -45,6 +45,7 @@ pub fn run() {
             music_utils::get_mp3_duration,
             user_configs::save_user_config,
             user_configs::load_user_config,
+            user_configs::open_user_data_dir,
             playlist::save_playlist,
             playlist::load_playlist,
             log::append_log,
