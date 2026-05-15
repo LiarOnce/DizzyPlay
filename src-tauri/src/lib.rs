@@ -55,6 +55,7 @@ pub fn run() {
             download::download_file,
             download::open_download_folder,
             download::cancel_download,
+            download::get_default_download_dir,
             extract::extract_archive,
         ])
         .run(tauri::generate_context!())

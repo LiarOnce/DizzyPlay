@@ -10,7 +10,7 @@ import {
   Loading,
   Check
 } from "@element-plus/icons-vue";
-import { loadUserConfig } from "../services/api.js";
+import { loadUserConfig, getDefaultDownloadDir } from "../services/api.js";
 import {
   downloadManager,
   DownloadStatus,
@@ -67,7 +67,18 @@ async function openDownloadFolder() {
       // 忽略
     }
     if (!savePath) {
-      savePath = localStorage.getItem("downloadPath") || "downloads";
+      savePath = localStorage.getItem("downloadPath") || "";
+    }
+    if (!savePath) {
+      try {
+        const defaultDir = await getDefaultDownloadDir();
+        if (defaultDir) savePath = defaultDir;
+      } catch (e) {
+        // 忽略
+      }
+    }
+    if (!savePath) {
+      savePath = "downloads";
     }
     const { invoke } = window.__TAURI_INTERNALS__;
     await invoke("open_download_folder", { path: savePath });

@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSetting } from "../../utils/settings.js";
 import { isTauri } from "../../utils/format.js";
+import { getDefaultDownloadDir } from "../../services/api.js";
 
 const {
   value: downloadPath,
@@ -44,6 +45,14 @@ function onAutoExtractChange(val) {
 
 onMounted(async () => {
   await Promise.all([loadDownloadPath(), loadAutoExtract()]);
+  // 如果未配置下载路径，设置为系统默认下载目录
+  if (!downloadPath.value && isTauri) {
+    const defaultDir = await getDefaultDownloadDir();
+    if (defaultDir) {
+      downloadPath.value = defaultDir;
+      await saveDownloadPath();
+    }
+  }
 });
 </script>
 

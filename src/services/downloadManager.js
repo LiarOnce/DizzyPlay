@@ -201,6 +201,15 @@ class DownloadManager {
       savePath = localStorage.getItem("downloadPath") || "";
     }
     if (!savePath) {
+      try {
+        const { getDefaultDownloadDir } = await import("./api.js");
+        const defaultDir = await getDefaultDownloadDir();
+        if (defaultDir) savePath = defaultDir;
+      } catch (e) {
+        // 忽略
+      }
+    }
+    if (!savePath) {
       savePath = "downloads";
     }
 

@@ -9,6 +9,31 @@ use tauri::Emitter;
 static CANCEL_TOKENS: LazyLock<Mutex<HashMap<String, bool>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// 获取默认下载目录
+/// - 便携模式（主程序目录下有 portable.txt）：返回主程序目录下的 downloads 文件夹
+/// - 非便携模式：返回系统下载目录下的 DizzyPlay 子目录
+///   - Windows: %USERPROFILE%\Downloads\DizzyPlay
+///   - Linux/macOS: ~/Downloads/DizzyPlay
+#[tauri::command]
+pub fn get_default_download_dir() -> Result<String, String> {
+    // 检查便携模式
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let portable_flag = exe_dir.join("portable.txt");
+            if portable_flag.exists() {
+                let dir = exe_dir.join("downloads");
+                return Ok(dir.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    let dir = dirs::home_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        .join("Downloads")
+        .join("DizzyPlay");
+    Ok(dir.to_string_lossy().to_string())
+}
+
 /// 下载链接信息
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DownloadLink {

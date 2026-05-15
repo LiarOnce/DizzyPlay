@@ -831,6 +831,20 @@ export async function parseDownloadLinks(html) {
   return links;
 }
 
+/**
+ * 获取系统默认下载目录（~/Downloads/DizzyPlay）
+ */
+export async function getDefaultDownloadDir() {
+  if (isTauri) {
+    try {
+      return await tauriInvoke("get_default_download_dir");
+    } catch (e) {
+      console.warn("[API] 获取默认下载目录失败:", e);
+    }
+  }
+  return "";
+}
+
 export async function downloadFile(
   url,
   savePath,
