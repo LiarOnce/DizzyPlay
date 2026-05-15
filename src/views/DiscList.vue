@@ -118,12 +118,15 @@ function viewItem(item) {
   if (route.path === "/following") {
     // 关注列表全是社团，id 实际为 labelid
     if (item.id) router.push(`/label/${item.id}`);
-  } else if (item.labelid) {
-    router.push(`/label/${item.labelid}`);
-  } else if (item.id) {
-    router.push(`/album/${item.id}`);
-  } else if (item.uid) {
-    router.push(`/user/${item.uid}`);
+  } else if (route.path === "/label") {
+    // 社团列表
+    if (item.id) router.push(`/label/${item.id}`);
+    else if (item.labelid) router.push(`/label/${item.labelid}`);
+  } else {
+    // 专辑类列表（/playlists, /ep, /dig, /purchased, /favorites）
+    if (item.id) router.push(`/album/${item.id}`);
+    else if (item.labelid) router.push(`/label/${item.labelid}`);
+    else if (item.uid) router.push(`/user/${item.uid}`);
   }
 }
 

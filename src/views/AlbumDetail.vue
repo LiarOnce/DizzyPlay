@@ -612,8 +612,8 @@ onUnmounted(() => {
             </el-button>
             <!-- 未拥有：免费商品显示兑换 -->
             <el-button
-              v-else-if="album.price === 0 && !album.onlyhavegift"
-              type="warning"
+              v-else-if="album.price === 0 && !album.ihavethis"
+              type="success"
               round
               :loading="redeeming"
               @click="redeemFreeDisc"
