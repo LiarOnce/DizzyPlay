@@ -56,6 +56,15 @@ jobs:
         with:
           targets: ${{ matrix.rust_target }}
 
+      - name: Fix Rust PATH (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        run: |
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "Using cargo at: $(which cargo)"
+          cargo --version
+          rustc --version
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -71,15 +80,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
-
-      - name: Fix Rust PATH (macOS)
-        if: startsWith(matrix.platform, 'macos')
-        run: |
-          rustup default stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          echo "Using cargo at: $(which cargo)"
-          cargo --version
-          rustc --version
 
       - name: Build Tauri
         run: pnpm tauri build --target ${{ matrix.rust_target }}
