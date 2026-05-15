@@ -4,6 +4,9 @@ import { Loading, Document } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { getDiscInfo } from "../../services/api.js";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { isTauri } from "../../utils/format.js";
+
+const CSV_FILTERS = [{ name: "CSV 文件", extensions: ["csv"] }];
 
 const props = defineProps({
   discId: {
@@ -152,6 +155,45 @@ async function copyToClipboard(text) {
     console.error("[MetadataExporter] 复制失败:", err);
   }
 }
+
+/**
+ * 保存元数据为 CSV 文件
+ */
+async function saveAsCsv() {
+  if (!currentContent.value) return;
+
+  const ext = selectedFormat.value === "mp3tag" ? "mp3tag" : "kid3";
+
+  if (isTauri) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const filePath = await save({
+      title: "保存元数据为 CSV",
+      defaultPath: `${props.albumTitle || "metadata"}_${ext}.csv`,
+      filters: CSV_FILTERS,
+    });
+    if (!filePath) return;
+    try {
+      await writeTextFile(filePath, "\ufeff" + currentContent.value);
+      ElMessage.success("CSV 文件已保存");
+    } catch (err) {
+      console.error("[MetadataExporter] 保存 CSV 失败:", err);
+      ElMessage.error("保存 CSV 文件失败");
+    }
+  } else {
+    // 浏览器环境fallback
+    const blob = new Blob(["\ufeff" + currentContent.value], { type: "text/csv;charset=utf-8;header=present" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${props.albumTitle || "metadata"}_${ext}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    ElMessage.success("CSV 文件已下载");
+  }
+}
 </script>
 
 <template>
@@ -188,6 +230,12 @@ async function copyToClipboard(text) {
         </el-select>
         <el-button type="primary" @click="copyToClipboard(currentContent)"
           >复制元数据</el-button
+        >
+        <el-button
+          type="success"
+          v-if="selectedFormat === 'mp3tag' || selectedFormat === 'kid3'"
+          @click="saveAsCsv"
+          >保存为 CSV</el-button
         >
         <el-button
           type="primary"
