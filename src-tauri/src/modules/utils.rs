@@ -10,14 +10,19 @@ fn is_portable() -> bool {
             if check_dir(exe_dir) {
                 return true;
             }
-            // `tauri dev` 时 exe 在 target/debug/ 下，向上查找项目根
+            // tauri dev / cargo build (debug) 时自动使用便携模式
+            let path_str = exe.to_string_lossy();
+            if path_str.contains("/target/debug/") || path_str.contains("\\target\\debug\\") {
+                return true;
+            }
+            // 向上查找项目根的 portable.txt（保持向后兼容）
             if let Ok(cwd) = std::env::current_dir() {
                 for ancestor in exe_dir.ancestors() {
-                    if ancestor == cwd || ancestor == cwd.join("src-tauri") {
-                        break;
-                    }
                     if check_dir(ancestor) {
                         return true;
+                    }
+                    if ancestor == cwd || ancestor == cwd.join("src-tauri") {
+                        break;
                     }
                 }
             }
