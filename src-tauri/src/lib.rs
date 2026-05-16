@@ -20,6 +20,11 @@ mod playlist;
 mod user_configs;
 #[path = "modules/tray.rs"]
 mod tray;
+#[path = "modules/audio_server.rs"]
+mod audio_server;
+
+#[cfg(not(target_os = "linux"))]
+use tauri::Manager;
 
 // ─── 应用入口 ───────────────────────────────────────────────
 
@@ -32,6 +37,20 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             tray::setup(app)?;
+            if let Ok(cache_dir) = crate::utils::get_app_subdir("cache/music") {
+                let _ = std::fs::create_dir_all(&cache_dir);
+                #[cfg(target_os = "linux")]
+                {
+                    audio_server::start(cache_dir);
+                    println!("[AudioServer] 已启动，端口: {}", audio_server::get_port());
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    if let Some(scopes) = app.try_state::<tauri::scope::Scopes>() {
+                        let _ = scopes.allow_directory(&cache_dir, true);
+                    }
+                }
+            }
             Ok(())
         })
         .on_window_event(tray::on_window_event)
@@ -40,6 +59,7 @@ pub fn run() {
             api::proxy_api_post,
             api::proxy_image,
             api::save_music_cache,
+            audio_server::get_audio_server_port,
             html_proxy::proxy_html_page,
             cache::save_cache,
             cache::load_cache,

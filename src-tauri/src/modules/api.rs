@@ -131,11 +131,21 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
         .map_err(|e| format!("创建音乐缓存目录失败: {}", e))?;
 
     let filename = crate::utils::url_to_filename(&url);
-    let file_path = music_cache_dir.join(format!("{}.mp3", filename));
+    let mp3_name = format!("{}.mp3", filename);
+    let file_path = music_cache_dir.join(&mp3_name);
 
-    // 如果文件已存在，直接返回路径
+    // 如果文件已存在，验证是否为有效 MP3
     if file_path.exists() {
-        return Ok(file_path.to_string_lossy().to_string());
+        if let Ok(data) = std::fs::read(&file_path) {
+            let is_valid = data.len() >= 4
+                && (data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33
+                    || data[0] == 0xFF && (data[1] & 0xF0) == 0xF0);
+            if is_valid {
+                return Ok(file_path.to_string_lossy().to_string());
+            }
+            println!("[MusicCache] 已有缓存文件无效，重新下载: {:?}", file_path);
+            let _ = std::fs::remove_file(&file_path);
+        }
     }
 
     let client = reqwest::Client::builder()
@@ -147,10 +157,25 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
         .await
         .map_err(|e| format!("下载音乐文件失败: {}", e))?;
 
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("下载音乐文件失败, HTTP {}", status));
+    }
+
     let bytes = response
         .bytes()
         .await
         .map_err(|e| format!("读取音乐文件数据失败: {}", e))?;
+
+    // 检查是否为有效的 MP3 文件（ID3 或 MPEG 帧头）
+    if bytes.len() < 4 {
+        return Err("下载的音乐文件无效（数据不足）".to_string());
+    }
+    let is_mp3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33 // ID3
+        || bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0; // MPEG 帧同步
+    if !is_mp3 {
+        return Err("下载的文件不是有效的 MP3 格式".to_string());
+    }
 
     // 写入原始二进制数据
     std::fs::write(&file_path, &bytes).map_err(|e| format!("写入音乐缓存文件失败: {}", e))?;

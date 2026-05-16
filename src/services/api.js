@@ -316,31 +316,40 @@ function proxyStreamingUrl(url) {
   return url;
 }
 
-/**
- * 获取缓存的音乐文件 URL
- */
 export async function getCachedMusicUrl(url) {
   if (!url) return "";
 
   // 浏览器环境：直接代理 streaming 请求
   if (!isTauri) return proxyStreamingUrl(url);
 
-  // Tauri 环境：优先使用本地缓存
+  // 获取缓存文件路径
+  async function useCachedFile(filePath) {
+    const port = await tauriInvoke("get_audio_server_port");
+    if (port > 0) {
+      // Linux: 通过本地 HTTP 服务器流式播放
+      const filename = filePath.replace(/\\/g, "/").split("/").pop();
+      return `http://127.0.0.1:${port}/${filename}`;
+    }
+    // Windows/macOS: 通过 asset protocol 直接播放
+    return window.__TAURI_INTERNALS__.convertFileSrc(filePath);
+  }
+
   try {
-    const cachedDataUri = await tauriInvoke("load_music_cache", { url });
-    if (cachedDataUri) {
+    // 尝试从缓存读取
+    const cachedPath = await tauriInvoke("load_music_cache", { url });
+    if (cachedPath) {
       console.log(`[MusicCache] 使用缓存: ${url.substring(0, 60)}...`);
-      return cachedDataUri;
+      return useCachedFile(cachedPath);
     }
 
+    // 无缓存时下载并缓存
     console.log(`[MusicCache] 下载并缓存: ${url.substring(0, 60)}...`);
     const savedPath = await tauriInvoke("save_music_cache", { url });
     if (savedPath) {
-      const dataUri = await tauriInvoke("load_music_cache", { url });
-      if (dataUri) return dataUri;
+      return useCachedFile(savedPath);
     }
   } catch (err) {
-    console.warn(`[MusicCache] 缓存失败，回退:`, err);
+    console.warn(`[MusicCache] 缓存失败，回退到 streaming:`, err);
   }
 
   return proxyStreamingUrl(url);

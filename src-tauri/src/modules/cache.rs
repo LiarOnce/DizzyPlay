@@ -163,25 +163,34 @@ pub fn load_image_cache(url: String, max_age_secs: u64) -> Result<String, String
 
 // ─── 音乐缓存 ───────────────────────────────────────────────
 
-/// 从 cache/music 目录加载音乐缓存
-/// 如果缓存文件存在，返回 data:audio/mpeg;base64,... 数据 URI；否则返回空字符串
+/// 从 cache/music 目录检查并获取音乐缓存文件路径
+/// 如果缓存文件存在且有效，返回完整文件路径；否则删除无效缓存并返回空字符串
 #[tauri::command]
 pub fn load_music_cache(url: String) -> Result<String, String> {
     let music_cache_dir = get_music_cache_dir()?;
 
     let filename = crate::utils::url_to_filename(&url);
-    let file_path = music_cache_dir.join(format!("{}.mp3", filename));
+    let mp3_name = format!("{}.mp3", filename);
+    let file_path = music_cache_dir.join(&mp3_name);
 
     if !file_path.exists() {
         return Ok(String::new());
     }
 
+    // 验证缓存文件是否是有效的 MP3
     let data = std::fs::read(&file_path).map_err(|e| format!("读取音乐缓存文件失败: {}", e))?;
 
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+    let is_valid_mp3 = data.len() >= 4
+        && (data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33 // ID3
+            || data[0] == 0xFF && (data[1] & 0xF0) == 0xF0); // MPEG 帧同步
 
-    Ok(format!("data:audio/mpeg;base64,{}", b64))
+    if !is_valid_mp3 {
+        println!("[MusicCache] 缓存文件无效，删除: {:?}", file_path);
+        let _ = std::fs::remove_file(&file_path);
+        return Ok(String::new());
+    }
+
+    Ok(file_path.to_string_lossy().to_string())
 }
 
 // ─── 缓存管理 ───────────────────────────────────────────────
