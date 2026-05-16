@@ -19,6 +19,11 @@
         "center": true
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/64x64.png",
+      "iconAsTemplate": true,
+      "tooltip": "DizzyPlay"
+    },
     "security": {
       "csp": null
     }

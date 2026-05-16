@@ -18,6 +18,8 @@ mod music_utils;
 mod playlist;
 #[path = "modules/user_configs.rs"]
 mod user_configs;
+#[path = "modules/tray.rs"]
+mod tray;
 
 // ─── 应用入口 ───────────────────────────────────────────────
 
@@ -28,6 +30,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            tray::setup(app)?;
+            Ok(())
+        })
+        .on_window_event(tray::on_window_event)
         .invoke_handler(tauri::generate_handler![
             api::proxy_api_get,
             api::proxy_api_post,
