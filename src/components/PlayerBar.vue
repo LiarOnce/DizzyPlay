@@ -166,6 +166,8 @@ async function playTrack(index) {
     });
   }
 
+  updateMediaSession();
+
   if (!audioElement) {
     initAudio();
   }
@@ -199,10 +201,12 @@ async function playTrack(index) {
     .play()
     .then(() => {
       isPlaying.value = true;
+      updateMediaSessionPlaybackState(true);
     })
     .catch((err) => {
       console.warn("[Player] 播放失败:", err);
       isPlaying.value = false;
+      updateMediaSessionPlaybackState(false);
     });
 }
 
@@ -246,11 +250,13 @@ function togglePlay() {
   if (isPlaying.value) {
     audioElement.pause();
     isPlaying.value = false;
+    updateMediaSessionPlaybackState(false);
   } else {
     audioElement
       .play()
       .then(() => {
         isPlaying.value = true;
+        updateMediaSessionPlaybackState(true);
       })
       .catch((err) => {
         console.warn("[Player] 恢复播放失败:", err);
@@ -387,6 +393,10 @@ function stopPlayback() {
   };
   currentTime.value = 0;
   duration.value = 0;
+  updateMediaSessionPlaybackState(false);
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = null;
+  }
 }
 
 /**
@@ -434,6 +444,48 @@ function addToPlaylist(songs) {
   return addedCount;
 }
 
+// ===== Media Session API =====
+
+function updateMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  const song = currentSong.value;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: song.name || "",
+    artist: song.artist || "",
+    album: song.album || "",
+    artwork: song.cover
+      ? [{ src: song.cover, sizes: "512x512", type: "image/jpeg" }]
+      : [],
+  });
+}
+
+function setupMediaSessionActions() {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.setActionHandler("play", () => {
+    if (!isPlaying.value) togglePlay();
+  });
+  navigator.mediaSession.setActionHandler("pause", () => {
+    if (isPlaying.value) togglePlay();
+  });
+  navigator.mediaSession.setActionHandler("previoustrack", () => {
+    prevSong();
+  });
+  navigator.mediaSession.setActionHandler("nexttrack", () => {
+    nextSong();
+  });
+  navigator.mediaSession.setActionHandler("seekto", (details) => {
+    if (details.fastSeek !== undefined && !details.fastSeek) return;
+    if (!audioElement || !details.seekTime) return;
+    audioElement.currentTime = details.seekTime;
+    currentTime.value = details.seekTime;
+  });
+}
+
+function updateMediaSessionPlaybackState(playing) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+}
+
 // ===== 生命周期 =====
 
 onMounted(async () => {
@@ -446,6 +498,9 @@ onMounted(async () => {
 
   // 初始化 Audio
   initAudio();
+
+  // 设置 Media Session 控制
+  setupMediaSessionActions();
 
   // 监听全局"添加到播放列表"事件
   window.addEventListener("add-to-playlist", handleAddToPlaylistEvent);
@@ -496,6 +551,16 @@ watch(
   () => playlist.value.length,
   () => {
     // 自动保存由 addToPlaylist 和 removeFromList 触发
+  },
+);
+
+// 监听当前歌曲变化（如封面异步加载完成），更新 Media Session
+watch(
+  () => currentSong.value.cover,
+  () => {
+    if (currentSong.value.name) {
+      updateMediaSession();
+    }
   },
 );
 
