@@ -1,3 +1,4 @@
+use crate::log::{log_info, log_warn};
 use serde::{Deserialize, Serialize};
 
 /// 代理 API 请求的响应结构
@@ -142,7 +143,7 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
             if is_valid {
                 return Ok(file_path.to_string_lossy().to_string());
             }
-            println!("[MusicCache] 已有缓存文件无效，重新下载: {:?}", file_path);
+            log_warn(&format!("[MusicCache] 已有缓存文件无效，重新下载: {:?}", file_path));
             let _ = std::fs::remove_file(&file_path);
         }
     }
@@ -193,7 +194,7 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
     // 写入原始二进制数据
     std::fs::write(&file_path, &bytes).map_err(|e| format!("写入音乐缓存文件失败: {}", e))?;
 
-    println!("[MusicCache] 已缓存音乐: {} -> {:?}", url, file_path);
+    log_info(&format!("[MusicCache] 已缓存音乐: {} -> {:?}", url, file_path));
     Ok(file_path.to_string_lossy().to_string())
 }
 

@@ -1,8 +1,9 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 /// 检测是否处于便携模式
 /// 便携模式下用户数据存储在可执行文件所在目录
-fn is_portable() -> bool {
+pub(crate) fn is_portable() -> bool {
     let check_dir = |dir: &std::path::Path| dir.join("portable.txt").exists();
 
     if let Ok(exe) = std::env::current_exe() {
@@ -31,24 +32,35 @@ fn is_portable() -> bool {
     false
 }
 
-/// 获取应用子目录路径
-/// 便携模式下返回 exe 所在目录下的子目录，否则返回系统标准目录
-pub fn get_app_subdir(subdir: &str) -> Result<PathBuf, String> {
+/// 计算应用根目录（不含子目录名）
+fn compute_app_root() -> Result<PathBuf, String> {
     if is_portable() {
         let exe_path =
             std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
         let exe_dir = exe_path
             .parent()
             .ok_or_else(|| "无法获取可执行文件所在目录".to_string())?;
-        return Ok(exe_dir.join(subdir));
-    }
-
-    let base = if cfg!(target_os = "windows") {
-        dirs::data_dir().ok_or_else(|| "无法获取用户数据目录".to_string())?
+        Ok(exe_dir.to_path_buf())
     } else {
-        dirs::config_dir().ok_or_else(|| "无法获取用户配置目录".to_string())?
-    };
-    Ok(base.join("DizzyPlay").join(subdir))
+        let base = if cfg!(target_os = "windows") {
+            dirs::data_dir().ok_or_else(|| "无法获取用户数据目录".to_string())?
+        } else {
+            dirs::config_dir().ok_or_else(|| "无法获取用户配置目录".to_string())?
+        };
+        Ok(base.join("DizzyPlay"))
+    }
+}
+
+/// 获取应用子目录路径
+/// 便携模式下返回 exe 所在目录下的子目录，否则返回系统标准目录
+/// 结果被缓存，后续调用不会重复计算
+pub fn get_app_subdir(subdir: &str) -> Result<PathBuf, String> {
+    static APP_ROOT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    let root = APP_ROOT.get_or_init(compute_app_root);
+    match root {
+        Ok(r) => Ok(r.join(subdir)),
+        Err(e) => Err(e.clone()),
+    }
 }
 
 pub fn url_to_filename(url: &str) -> String {

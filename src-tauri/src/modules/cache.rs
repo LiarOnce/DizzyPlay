@@ -1,3 +1,5 @@
+use crate::log::log_warn;
+
 fn get_cache_dir() -> Result<std::path::PathBuf, String> {
     crate::utils::get_app_subdir("cache/datas")
 }
@@ -185,7 +187,7 @@ pub fn load_music_cache(url: String) -> Result<String, String> {
             || data[0] == 0xFF && (data[1] & 0xF0) == 0xF0); // MPEG 帧同步
 
     if !is_valid_mp3 {
-        println!("[MusicCache] 缓存文件无效，删除: {:?}", file_path);
+        log_warn(&format!("[MusicCache] 缓存文件无效，删除: {:?}", file_path));
         let _ = std::fs::remove_file(&file_path);
         return Ok(String::new());
     }

@@ -1,3 +1,4 @@
+use crate::log::{log_info, log_warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -50,12 +51,12 @@ pub async fn fetch_disc_page_html(
     session_id: String,
 ) -> Result<String, String> {
     let url = format!("https://www.dizzylab.net/d/{}/", disc_id);
-    println!(
+    log_info(&format!(
         "[Download] 获取专辑页面: {} (csrf: {}, session: {})",
         url,
         !csrf_token.is_empty(),
         !session_id.is_empty()
-    );
+    ));
 
     let client = crate::utils::create_dizzylab_client();
     let request = crate::utils::add_cookie_header(
@@ -163,7 +164,7 @@ pub fn parse_download_links(html: String) -> Result<Vec<DownloadLink>, String> {
         }
     }
 
-    println!("[Download] 解析到 {} 个下载链接", links.len());
+    log_info(&format!("[Download] 解析到 {} 个下载链接", links.len()));
     Ok(links)
 }
 
@@ -186,7 +187,7 @@ fn extract_attribute(tag: &str, attr: &str) -> Option<String> {
 pub fn cancel_download(task_id: String) -> Result<String, String> {
     if let Ok(mut map) = CANCEL_TOKENS.lock() {
         map.insert(task_id.clone(), true);
-        println!("[Download] 已请求取消任务: {}", task_id);
+        log_info(&format!("[Download] 已请求取消任务: {}", task_id));
     }
     Ok(format!("已请求取消: {}", task_id))
 }
@@ -221,10 +222,10 @@ pub async fn download_file(
     offset: u64,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    println!(
+    log_info(&format!(
         "[Download] 开始下载: {} (task_id: {}, offset: {})",
         url, task_id, offset
-    );
+    ));
 
     // 注册取消标志（初始为 false）
     {
@@ -247,7 +248,7 @@ pub async fn download_file(
     // 断点续传：如果 offset > 0，发送 Range 请求头
     if offset > 0 {
         request = request.header("Range", format!("bytes={}-", offset));
-        println!("[Download] 断点续传, Range: bytes={}-", offset);
+        log_info(&format!("[Download] 断点续传, Range: bytes={}-", offset));
     }
 
     let response = request
@@ -378,7 +379,7 @@ pub async fn download_file(
                         writer
                             .flush()
                             .map_err(|e| format!("刷新文件缓冲区失败: {}", e))?;
-                        println!("[Download] 任务已暂停: {}", task_id);
+                        log_warn(&format!("[Download] 任务已暂停: {}", task_id));
                         return Err("下载已暂停".to_string());
                     }
                 }
@@ -430,7 +431,7 @@ pub async fn download_file(
     }
 
     let size_mb = downloaded as f64 / (1024.0 * 1024.0);
-    println!("[Download] 下载完成: {:?} ({:.2} MB)", file_path, size_mb);
+    log_info(&format!("[Download] 下载完成: {:?} ({:.2} MB)", file_path, size_mb));
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -447,7 +448,7 @@ pub fn open_download_folder(path: String) -> Result<String, String> {
         dir
     };
 
-    println!("[Download] 打开文件夹: {:?}", dir_to_open);
+    log_info(&format!("[Download] 打开文件夹: {:?}", dir_to_open));
 
     #[cfg(target_os = "linux")]
     {

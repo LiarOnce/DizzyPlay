@@ -1,3 +1,4 @@
+use crate::log::log_info;
 use std::path::Path;
 
 fn sanitize_archive_path(path: &str) -> Option<String> {
@@ -68,12 +69,12 @@ pub fn extract_archive(archive_path: String, delete_after: bool) -> Result<Strin
         }
     }
 
-    println!("[Extract] 解压完成: {:?} → {:?}", path, output_dir);
+    log_info(&format!("[Extract] 解压完成: {:?} → {:?}", path, output_dir));
 
     if delete_after {
         std::fs::remove_file(path)
             .map_err(|e| format!("删除压缩包失败: {}", e))?;
-        println!("[Extract] 已删除压缩包: {:?}", path);
+        log_info(&format!("[Extract] 已删除压缩包: {:?}", path));
     }
 
     Ok(output_dir.to_string_lossy().to_string())

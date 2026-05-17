@@ -3,10 +3,9 @@ fn is_leap_year(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
-/// 追加日志到 user/DizzyPlay.log
+/// 内部：写入一条日志到 user/DizzyPlay.log
 /// 每条日志一行，格式: [时间戳] [级别] 消息
-#[tauri::command]
-pub fn append_log(level: String, message: String) -> Result<String, String> {
+fn write_log_entry(level: &str, message: &str) -> Result<String, String> {
     let config_dir = crate::user_configs::get_user_config_dir()?;
     std::fs::create_dir_all(&config_dir).map_err(|e| format!("创建日志目录失败: {}", e))?;
 
@@ -72,8 +71,36 @@ pub fn append_log(level: String, message: String) -> Result<String, String> {
     Ok(file_path.to_string_lossy().to_string())
 }
 
+/// Rust 内部日志：INFO 级别
+pub fn log_info(message: &str) {
+    let _ = write_log_entry("INFO", message);
+}
+
+/// Rust 内部日志：WARN 级别
+pub fn log_warn(message: &str) {
+    let _ = write_log_entry("WARN", message);
+}
+
+/// Rust 内部日志：ERROR 级别
+pub fn log_error(message: &str) {
+    let _ = write_log_entry("ERROR", message);
+}
+
+/// Rust 内部日志：DEBUG 级别
+pub fn log_debug(message: &str) {
+    let _ = write_log_entry("DEBUG", message);
+}
+
+/// 追加日志到 user/DizzyPlay.log（Tauri 命令，由 JS 调用）
+/// 每条日志一行，格式: [时间戳] [级别] 消息
+#[tauri::command]
+pub fn append_log(level: String, message: String) -> Result<String, String> {
+    write_log_entry(&level, &message)
+}
+
 /// 备份上一次运行的日志文件
 /// 将 DizzyPlay.log 重命名为 DizzyPlay.log.bak（覆盖旧备份）
+/// 备份后写入当前会话的启动标记日志
 #[tauri::command]
 pub fn rotate_log() -> Result<String, String> {
     let config_dir = crate::user_configs::get_user_config_dir()?;
@@ -81,14 +108,18 @@ pub fn rotate_log() -> Result<String, String> {
     let bak_path = config_dir.join("DizzyPlay.log.bak");
 
     if log_path.exists() {
-        // 删除旧的备份文件（如果存在）
         if bak_path.exists() {
             std::fs::remove_file(&bak_path).map_err(|e| format!("删除旧备份文件失败: {}", e))?;
         }
-        // 重命名当前日志文件为备份
         std::fs::rename(&log_path, &bak_path).map_err(|e| format!("备份日志文件失败: {}", e))?;
-        Ok(format!("日志已备份: {:?} -> {:?}", log_path, bak_path))
-    } else {
-        Ok("没有找到日志文件，无需备份".to_string())
     }
+
+    // 备份完成后写入启动日志到新文件
+    if crate::utils::is_portable() {
+        let _ = write_log_entry("INFO", "[isPortable] 检测到便携模式，使用本地数据目录");
+    } else {
+        let _ = write_log_entry("INFO", "[isPortable] 标准模式，使用系统数据目录");
+    }
+
+    Ok("日志已轮替".to_string())
 }
