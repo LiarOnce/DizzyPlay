@@ -16,6 +16,15 @@ const {
   toStorage: (v) => (v ? "true" : "false"),
 });
 
+const {
+  value: exitBehavior,
+  load: loadExitBehavior,
+  save: saveExitBehavior,
+} = useSetting("exitBehavior", {
+  defaultValue: "minimize_to_tray",
+  localStorageKey: "settings_exitBehavior",
+});
+
 const configLoaded = ref(false);
 
 function onUse320kbpsChange(val) {
@@ -28,8 +37,14 @@ function onUse320kbpsChange(val) {
   );
 }
 
+function onExitBehaviorChange(val) {
+  exitBehavior.value = val;
+  saveExitBehavior();
+}
+
 onMounted(async () => {
   await load320kbps();
+  await loadExitBehavior();
   configLoaded.value = true;
 });
 
@@ -60,6 +75,19 @@ async function openDataDir() {
         </div>
         <div class="setting-control">
           <el-switch v-model="use320kbps" @change="onUse320kbpsChange" />
+        </div>
+      </div>
+
+      <div class="setting-item" v-if="configLoaded">
+        <div class="setting-info">
+          <span class="setting-title">退出行为</span>
+          <span class="setting-desc">点击关闭按钮时的操作</span>
+        </div>
+        <div class="setting-control">
+          <el-radio-group v-model="exitBehavior" @change="onExitBehaviorChange">
+            <el-radio value="minimize_to_tray">最小化到托盘</el-radio>
+            <el-radio value="exit">直接退出</el-radio>
+          </el-radio-group>
         </div>
       </div>
 
