@@ -1,3 +1,5 @@
+mod globalvars;
+
 #[path = "modules/utils.rs"]
 mod utils;
 #[path = "modules/api.rs"]
@@ -20,10 +22,10 @@ mod playlist;
 mod user_configs;
 #[path = "modules/tray.rs"]
 mod tray;
-#[path = "modules/audio_server.rs"]
-mod audio_server;
+#[path = "modules/audio_player.rs"]
+mod audio_player;
 
-#[cfg(not(target_os = "linux"))]
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 // ─── 应用入口 ───────────────────────────────────────────────
@@ -37,20 +39,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             tray::setup(app)?;
-            if let Ok(cache_dir) = crate::utils::get_app_subdir("cache/music") {
-                let _ = std::fs::create_dir_all(&cache_dir);
-                #[cfg(target_os = "linux")]
-                {
-                    audio_server::start(cache_dir);
-                    println!("[AudioServer] 已启动，端口: {}", audio_server::get_port());
-                }
-                #[cfg(not(target_os = "linux"))]
-                {
-                    if let Some(scopes) = app.try_state::<tauri::scope::Scopes>() {
-                        let _ = scopes.allow_directory(&cache_dir, true);
-                    }
-                }
-            }
+
+            let player = Arc::new(Mutex::new(audio_player::AudioPlayer::new()));
+            app.manage(player.clone());
+            audio_player::start_progress_timer(app.handle(), player);
+
             Ok(())
         })
         .on_window_event(tray::on_window_event)
@@ -59,7 +52,13 @@ pub fn run() {
             api::proxy_api_post,
             api::proxy_image,
             api::save_music_cache,
-            audio_server::get_audio_server_port,
+            audio_player::play_audio,
+            audio_player::pause_audio,
+            audio_player::resume_audio,
+            audio_player::seek_audio,
+            audio_player::stop_audio,
+            audio_player::set_audio_volume,
+            audio_player::get_audio_state,
             html_proxy::proxy_html_page,
             cache::save_cache,
             cache::load_cache,

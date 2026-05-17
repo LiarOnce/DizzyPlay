@@ -20,8 +20,14 @@ import {
   getCoverUrl,
   getCachedCoverUrl,
   getCachedMusicUrl,
+  tauriPlayAudio,
+  tauriPauseAudio,
+  tauriResumeAudio,
+  tauriSeekAudio,
+  tauriSetAudioVolume,
+  tauriStopAudio,
 } from "../services/api.js";
-import { formatDuration } from "../utils/format.js";
+import { formatDuration, isTauri } from "../utils/format.js";
 
 // ===== 播放状态 =====
 const isPlaying = ref(false);
@@ -45,8 +51,10 @@ const currentSong = ref({
 // ===== 播放列表 =====
 const playlist = ref([]);
 
-// ===== HTML5 Audio 实例 =====
+// ===== 音频实例 =====
 let audioElement = null;
+let unlistenProgress = null;
+let unlistenEnded = null;
 
 // ===== 计算属性 =====
 const progressPercent = computed(() => {
@@ -106,9 +114,15 @@ const hasCurrentSong = computed(() => {
 // ===== 音频控制 =====
 
 /**
- * 初始化 Audio 元素并绑定事件
+ * 初始化音频播放
+ * Tauri 环境：通过 Rust 后端播放；浏览器环境：使用 HTML5 Audio
  */
 function initAudio() {
+  if (isTauri) {
+    audioElement = null;
+    return;
+  }
+
   if (audioElement) {
     audioElement.pause();
     audioElement.src = "";
@@ -127,7 +141,6 @@ function initAudio() {
 
   audioElement.addEventListener("ended", () => {
     isPlaying.value = false;
-    // 自动播放下一首
     onTrackEnded();
   });
 
@@ -136,7 +149,6 @@ function initAudio() {
     isPlaying.value = false;
   });
 
-  // 恢复音量设置
   audioElement.volume = isMuted.value ? 0 : volume.value / 100;
 }
 
@@ -172,22 +184,19 @@ async function playTrack(index) {
     initAudio();
   }
 
-  // 获取音频 URL
+  // 获取音频 URL/路径
   const audioUrl = song.url || song.audioUrl;
   if (!audioUrl) {
     console.warn("[Player] 曲目没有音频 URL，跳过播放");
-    // 没有 URL 时不要设置 audioElement.src，避免 NotSupportedError
     isPlaying.value = false;
     return;
   }
 
-  // 使用 getCachedMusicUrl 获取缓存后的音频 URL（Tauri 环境会缓存到本地）
   let playUrl;
   try {
-    playUrl = await getCachedMusicUrl(audioUrl);
+    playUrl = await getCachedMusicUrl(audioUrl, song.discid, song.id);
   } catch (err) {
     console.warn("[Player] 获取缓存音乐 URL 失败，使用原始 URL:", err);
-    // 回退：手动替换 streaming 域名
     playUrl = audioUrl.includes("streaming.dizzylab.net")
       ? audioUrl.replace("https://streaming.dizzylab.net", "/streaming")
       : audioUrl;
@@ -195,19 +204,40 @@ async function playTrack(index) {
 
   console.log(`[Player] 播放: ${currentSong.value.name}`);
 
-  audioElement.src = playUrl;
-  audioElement.currentTime = 0;
-  audioElement
-    .play()
-    .then(() => {
-      isPlaying.value = true;
+  if (isTauri) {
+    if (playUrl.startsWith("http")) {
+      console.warn("[Player] 缓存未就绪，无法播放:", playUrl);
+      isPlaying.value = false;
+      return;
+    }
+    try {
+      const result = await tauriPlayAudio(playUrl);
+      if (result) {
+        isPlaying.value = result.is_playing;
+        duration.value = result.duration;
+        currentTime.value = result.position;
+      }
       updateMediaSessionPlaybackState(true);
-    })
-    .catch((err) => {
-      console.warn("[Player] 播放失败:", err);
+    } catch (err) {
+      console.warn("[Player] 原生播放失败:", err);
       isPlaying.value = false;
       updateMediaSessionPlaybackState(false);
-    });
+    }
+  } else {
+    audioElement.src = playUrl;
+    audioElement.currentTime = 0;
+    audioElement
+      .play()
+      .then(() => {
+        isPlaying.value = true;
+        updateMediaSessionPlaybackState(true);
+      })
+      .catch((err) => {
+        console.warn("[Player] 播放失败:", err);
+        isPlaying.value = false;
+        updateMediaSessionPlaybackState(false);
+      });
+  }
 }
 
 /**
@@ -236,31 +266,46 @@ function onTrackEnded() {
 
 function togglePlay() {
   if (!hasCurrentSong.value) {
-    // 没有当前歌曲，尝试播放列表第一首
     if (playlist.value.length > 0) {
       playTrack(0);
     }
     return;
   }
 
-  if (!audioElement) {
+  if (!audioElement && !isTauri) {
     initAudio();
   }
 
   if (isPlaying.value) {
-    audioElement.pause();
+    if (isTauri) {
+      tauriPauseAudio().catch((e) => console.warn("[Player] 暂停失败:", e));
+    } else if (audioElement) {
+      audioElement.pause();
+    }
     isPlaying.value = false;
     updateMediaSessionPlaybackState(false);
   } else {
-    audioElement
-      .play()
-      .then(() => {
-        isPlaying.value = true;
-        updateMediaSessionPlaybackState(true);
-      })
-      .catch((err) => {
-        console.warn("[Player] 恢复播放失败:", err);
-      });
+    if (isTauri) {
+      tauriResumeAudio()
+        .then((state) => {
+          if (state) {
+            isPlaying.value = state.is_playing;
+            duration.value = state.duration;
+            currentTime.value = state.position;
+          }
+        })
+        .catch((err) => console.warn("[Player] 恢复播放失败:", err));
+    } else if (audioElement) {
+      audioElement
+        .play()
+        .then(() => {
+          isPlaying.value = true;
+          updateMediaSessionPlaybackState(true);
+        })
+        .catch((err) => {
+          console.warn("[Player] 恢复播放失败:", err);
+        });
+    }
   }
 }
 
@@ -304,7 +349,11 @@ function nextSong() {
 
 function toggleMute() {
   isMuted.value = !isMuted.value;
-  if (audioElement) {
+  if (isTauri) {
+    tauriSetAudioVolume(isMuted.value ? 0 : volume.value).catch((e) =>
+      console.warn("[Player] 静音设置失败:", e),
+    );
+  } else if (audioElement) {
     audioElement.muted = isMuted.value;
   }
 }
@@ -320,15 +369,21 @@ function togglePlaylist() {
 }
 
 function onProgressChange(val) {
-  if (!audioElement || !duration.value) return;
+  if (!duration.value) return;
   const newTime = (val / 100) * duration.value;
-  audioElement.currentTime = newTime;
+  if (isTauri) {
+    tauriSeekAudio(newTime).catch((e) => console.warn("[Player] 定位失败:", e));
+  } else if (audioElement) {
+    audioElement.currentTime = newTime;
+  }
   currentTime.value = newTime;
 }
 
 function onVolumeChange(val) {
   volume.value = val;
-  if (audioElement) {
+  if (isTauri) {
+    tauriSetAudioVolume(val).catch((e) => console.warn("[Player] 音量设置失败:", e));
+  } else if (audioElement) {
     audioElement.volume = isMuted.value ? 0 : val / 100;
   }
   isMuted.value = false;
@@ -378,7 +433,9 @@ function removeFromList(index, event) {
  * 停止播放
  */
 function stopPlayback() {
-  if (audioElement) {
+  if (isTauri) {
+    tauriStopAudio().catch((e) => console.warn("[Player] 停止失败:", e));
+  } else if (audioElement) {
     audioElement.pause();
     audioElement.src = "";
   }
@@ -475,8 +532,12 @@ function setupMediaSessionActions() {
   });
   navigator.mediaSession.setActionHandler("seekto", (details) => {
     if (details.fastSeek !== undefined && !details.fastSeek) return;
-    if (!audioElement || !details.seekTime) return;
-    audioElement.currentTime = details.seekTime;
+    if (!details.seekTime) return;
+    if (isTauri) {
+      tauriSeekAudio(details.seekTime).catch((e) => console.warn("[Player] 定位失败:", e));
+    } else if (audioElement) {
+      audioElement.currentTime = details.seekTime;
+    }
     currentTime.value = details.seekTime;
   });
 }
@@ -489,29 +550,41 @@ function updateMediaSessionPlaybackState(playing) {
 // ===== 生命周期 =====
 
 onMounted(async () => {
-  // 加载播放列表
   const savedPlaylist = await loadPlaylist();
   if (savedPlaylist && savedPlaylist.length > 0) {
     playlist.value = savedPlaylist;
     console.log(`[Player] 已加载播放列表: ${playlist.value.length} 首`);
   }
 
-  // 初始化 Audio
   initAudio();
-
-  // 设置 Media Session 控制
   setupMediaSessionActions();
 
-  // 监听全局"添加到播放列表"事件
+  // Tauri 环境：监听 Rust 后端音频事件
+  if (isTauri) {
+    const { listen } = await import("@tauri-apps/api/event");
+    unlistenProgress = await listen("audio-progress", (event) => {
+      const { position, duration: dur, is_playing } = event.payload;
+      currentTime.value = position;
+      if (dur > 0) duration.value = dur;
+      if (is_playing !== undefined) isPlaying.value = is_playing;
+    });
+    unlistenEnded = await listen("audio-ended", () => {
+      isPlaying.value = false;
+      onTrackEnded();
+    });
+  }
+
   window.addEventListener("add-to-playlist", handleAddToPlaylistEvent);
 });
 
 onUnmounted(() => {
-  if (audioElement) {
+  if (!isTauri && audioElement) {
     audioElement.pause();
     audioElement.src = "";
     audioElement = null;
   }
+  if (unlistenProgress) unlistenProgress();
+  if (unlistenEnded) unlistenEnded();
   window.removeEventListener("add-to-playlist", handleAddToPlaylistEvent);
 });
 

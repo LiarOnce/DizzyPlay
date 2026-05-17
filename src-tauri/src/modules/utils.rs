@@ -92,11 +92,8 @@ pub fn create_dizzylab_client() -> reqwest::Client {
 
 pub fn add_dizzylab_headers(request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
     request
-        .header("Referer", "https://www.dizzylab.net")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
+        .header("Referer", crate::globalvars::DIZZYLAB_REFERER)
+        .header("User-Agent", crate::globalvars::DIZZYLAB_USER_AGENT)
 }
 
 pub fn add_cookie_header(

@@ -7,6 +7,7 @@
  */
 
 import { isTauri } from "../utils/format.js";
+import { DIZZYLAB_REFERER } from "../globalvar.js";
 
 /**
  * 通过 Rust 后端代理获取用户页面的 HTML 内容
@@ -32,7 +33,7 @@ export async function fetchUserPageHtml(uid, type) {
     try {
       const proxyUrl = `/user-page?url=${encodeURIComponent(url)}`;
       const response = await fetch(proxyUrl, {
-        headers: { Referer: "https://www.dizzylab.net" },
+        headers: { Referer: DIZZYLAB_REFERER },
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);

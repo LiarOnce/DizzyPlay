@@ -12,12 +12,7 @@ const PLACEHOLDER_IMAGE =
 const tauriCoverCache = new Map();
 
 import { buildCookieHeader, isTauri } from "../utils/format.js";
-
-// JSON 数据缓存有效期（1天）
-const CACHE_MAX_AGE_SECS = 86400;
-
-// 图片缓存有效期（7天）
-const IMAGE_CACHE_MAX_AGE_SECS = 7 * 24 * 3600;
+import { DIZZYLAB_REFERER, CACHE_MAX_AGE_SECS, IMAGE_CACHE_MAX_AGE_SECS } from "../globalvar.js";
 
 // ============================================================
 // 基础工具函数
@@ -316,43 +311,94 @@ function proxyStreamingUrl(url) {
   return url;
 }
 
-export async function getCachedMusicUrl(url) {
+export async function getCachedMusicUrl(url, discid, trackid) {
   if (!url) return "";
 
   // 浏览器环境：直接代理 streaming 请求
   if (!isTauri) return proxyStreamingUrl(url);
 
-  // 获取缓存文件路径
-  async function useCachedFile(filePath) {
-    const port = await tauriInvoke("get_audio_server_port");
-    if (port > 0) {
-      // Linux: 通过本地 HTTP 服务器流式播放
-      const filename = filePath.replace(/\\/g, "/").split("/").pop();
-      return `http://127.0.0.1:${port}/${filename}`;
+  // 尝试获取当前音质设置
+  const packtype =
+    (typeof localStorage !== "undefined" && localStorage.getItem("use320kbps") === "true")
+      ? "320" : "128";
+
+  async function ensureCachedFile() {
+    try {
+      const cachedPath = await tauriInvoke("load_music_cache", { url });
+      if (cachedPath) {
+        console.log(`[MusicCache] 使用缓存: ${url.substring(0, 60)}...`);
+        return cachedPath;
+      }
+
+      console.log(`[MusicCache] 下载并缓存: ${url.substring(0, 60)}...`);
+      const savedPath = await tauriInvoke("save_music_cache", { url });
+      if (savedPath) return savedPath;
+    } catch (err) {
+      const msg = String(err);
+      // URL 过期（403）且有 discid/trackid 时，刷新 URL 后重试
+      if (msg.includes("403") && discid && trackid) {
+        console.log(`[MusicCache] 下载 URL 已过期，尝试刷新...`);
+        try {
+          const fresh = await getTrackDownloadUrl(discid, trackid, packtype);
+          if (fresh?.track?.url) {
+            console.log(`[MusicCache] 使用刷新后的 URL 重新缓存`);
+            const savedPath = await tauriInvoke("save_music_cache", { url: fresh.track.url });
+            if (savedPath) return savedPath;
+          }
+        } catch (refreshErr) {
+          console.warn(`[MusicCache] URL 刷新失败:`, refreshErr);
+        }
+      } else {
+        console.warn(`[MusicCache] 缓存失败:`, err);
+      }
     }
-    // Windows/macOS: 通过 asset protocol 直接播放
-    return window.__TAURI_INTERNALS__.convertFileSrc(filePath);
+    return null;
   }
 
-  try {
-    // 尝试从缓存读取
-    const cachedPath = await tauriInvoke("load_music_cache", { url });
-    if (cachedPath) {
-      console.log(`[MusicCache] 使用缓存: ${url.substring(0, 60)}...`);
-      return useCachedFile(cachedPath);
-    }
+  const filePath = await ensureCachedFile();
+  return filePath || proxyStreamingUrl(url);
+}
 
-    // 无缓存时下载并缓存
-    console.log(`[MusicCache] 下载并缓存: ${url.substring(0, 60)}...`);
-    const savedPath = await tauriInvoke("save_music_cache", { url });
-    if (savedPath) {
-      return useCachedFile(savedPath);
-    }
-  } catch (err) {
-    console.warn(`[MusicCache] 缓存失败，回退到 streaming:`, err);
-  }
+// ============================================================
+// 原生音频播放控制（Tauri 环境）
+// ============================================================
 
-  return proxyStreamingUrl(url);
+/**
+ * 通过 Rust 后端播放本地缓存音频
+ */
+export async function tauriPlayAudio(path) {
+  if (!isTauri) return;
+  return tauriInvoke("play_audio", { path });
+}
+
+export async function tauriPauseAudio() {
+  if (!isTauri) return;
+  return tauriInvoke("pause_audio");
+}
+
+export async function tauriResumeAudio() {
+  if (!isTauri) return;
+  return tauriInvoke("resume_audio");
+}
+
+export async function tauriSeekAudio(position) {
+  if (!isTauri) return;
+  return tauriInvoke("seek_audio", { position });
+}
+
+export async function tauriStopAudio() {
+  if (!isTauri) return;
+  return tauriInvoke("stop_audio");
+}
+
+export async function tauriSetAudioVolume(volume) {
+  if (!isTauri) return;
+  return tauriInvoke("set_audio_volume", { volume });
+}
+
+export async function tauriGetAudioState() {
+  if (!isTauri) return {};
+  return tauriInvoke("get_audio_state");
 }
 
 // ============================================================
@@ -531,7 +577,7 @@ async function fetchApiGet(endpoint, params = {}) {
   );
 
   const response = await fetch(url, {
-    headers: { Referer: "https://www.dizzylab.net" },
+    headers: { Referer: DIZZYLAB_REFERER },
   });
 
   if (!response.ok) {
@@ -584,7 +630,7 @@ async function apiPost(endpoint, body, contentType, label) {
     method: "POST",
     headers: {
       "Content-Type": contentType,
-      Referer: "https://www.dizzylab.net",
+      Referer: DIZZYLAB_REFERER,
     },
     body,
   });
@@ -784,7 +830,7 @@ export async function fetchDiscPageHtml(discId, csrfToken, sessionId) {
     });
   }
   const url = `https://www.dizzylab.net/d/${discId}/`;
-  const headers = { Referer: "https://www.dizzylab.net" };
+  const headers = { Referer: DIZZYLAB_REFERER };
   const cookie = buildCookieHeader(csrfToken, sessionId);
   if (cookie) headers["Cookie"] = cookie;
   const response = await fetch(url, { headers });
@@ -868,7 +914,7 @@ export async function downloadFile(
       sessionId,
     });
   }
-  const headers = { Referer: "https://www.dizzylab.net" };
+  const headers = { Referer: DIZZYLAB_REFERER };
   const cookie = buildCookieHeader(csrfToken, sessionId);
   if (cookie) headers["Cookie"] = cookie;
 

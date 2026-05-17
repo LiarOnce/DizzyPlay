@@ -134,7 +134,6 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
     let mp3_name = format!("{}.mp3", filename);
     let file_path = music_cache_dir.join(&mp3_name);
 
-    // 如果文件已存在，验证是否为有效 MP3
     if file_path.exists() {
         if let Ok(data) = std::fs::read(&file_path) {
             let is_valid = data.len() >= 4
@@ -148,12 +147,25 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
         }
     }
 
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::REFERER,
+        reqwest::header::HeaderValue::from_static(crate::globalvars::DIZZYLAB_REFERER),
+    );
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        reqwest::header::HeaderValue::from_static(crate::globalvars::DIZZYLAB_USER_AGENT),
+    );
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
+        .default_headers(headers)
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let response = crate::utils::add_dizzylab_headers(client.get(&url)).send()
+    let response = client
+        .get(&url)
+        .send()
         .await
         .map_err(|e| format!("下载音乐文件失败: {}", e))?;
 
@@ -167,17 +179,15 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
         .await
         .map_err(|e| format!("读取音乐文件数据失败: {}", e))?;
 
-    // 检查是否为有效的 MP3 文件（ID3 或 MPEG 帧头）
     if bytes.len() < 4 {
         return Err("下载的音乐文件无效（数据不足）".to_string());
     }
-    let is_mp3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33 // ID3
-        || bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0; // MPEG 帧同步
+    let is_mp3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33
+        || bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0;
     if !is_mp3 {
         return Err("下载的文件不是有效的 MP3 格式".to_string());
     }
 
-    // 写入原始二进制数据
     std::fs::write(&file_path, &bytes).map_err(|e| format!("写入音乐缓存文件失败: {}", e))?;
 
     println!("[MusicCache] 已缓存音乐: {} -> {:?}", url, file_path);

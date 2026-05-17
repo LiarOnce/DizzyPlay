@@ -1,6 +1,7 @@
 import { loadUserConfig } from "./api.js";
 import { listen } from "@tauri-apps/api/event";
 import { isTauri, buildCookieHeader, getAuthCredentials } from "../utils/format.js";
+import { DIZZYLAB_REFERER } from "../globalvar.js";
 
 // ===== 下载状态常量 =====
 export const DownloadStatus = {
@@ -324,7 +325,7 @@ class DownloadManager {
    */
   async _browserDownload(task, csrfToken, sessionId) {
     try {
-      const headers = { Referer: "https://www.dizzylab.net" };
+      const headers = { Referer: DIZZYLAB_REFERER };
       const cookie = buildCookieHeader(csrfToken, sessionId);
       if (cookie) headers["Cookie"] = cookie;
 
