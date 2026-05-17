@@ -75,7 +75,7 @@ jobs:
         if: startsWith(matrix.platform, 'ubuntu')
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0
         with:
-          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libasound2-dev pkg-config
           version: 1.0
 
       - name: Install frontend dependencies
