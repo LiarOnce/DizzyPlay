@@ -556,7 +556,9 @@ onMounted(async () => {
     console.log(`[Player] 已加载播放列表: ${playlist.value.length} 首`);
   }
 
+  // 初始化 Audio
   initAudio();
+  // 初始化 Media Session API
   setupMediaSessionActions();
 
   // Tauri 环境：监听 Rust 后端音频事件

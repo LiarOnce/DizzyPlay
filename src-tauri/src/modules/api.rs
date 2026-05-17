@@ -182,12 +182,15 @@ pub async fn save_music_cache(url: String) -> Result<String, String> {
     if bytes.len() < 4 {
         return Err("下载的音乐文件无效（数据不足）".to_string());
     }
-    let is_mp3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33
-        || bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0;
+
+    // 检查是否为有效的 MP3 文件（ID3 或 MPEG 帧头）
+    let is_mp3 = bytes[0] == 0x49 && bytes[1] == 0x44 && bytes[2] == 0x33 // ID3
+        || bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0; // MPEG 帧同步
     if !is_mp3 {
         return Err("下载的文件不是有效的 MP3 格式".to_string());
     }
-
+    
+    // 写入原始二进制数据
     std::fs::write(&file_path, &bytes).map_err(|e| format!("写入音乐缓存文件失败: {}", e))?;
 
     println!("[MusicCache] 已缓存音乐: {} -> {:?}", url, file_path);
