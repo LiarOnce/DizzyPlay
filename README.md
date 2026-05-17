@@ -25,7 +25,7 @@
 
 ### 前置要求
 
-- [Node.js](https://nodejs.org/) >= 18
+- [Node.js](https://nodejs.org/) >= 22
 - [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/) (edition 2021)
 
