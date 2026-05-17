@@ -56,7 +56,7 @@ watch(paginatedDiscs, (newItems) => {
 });
 
 const pageConfig = {
-  "/playlists": {
+  "/allalbum": {
     title: "全部专辑",
     fetcher: () => getDiscs({ l: 0, r: globalOffsets, sort: "ad" }),
   },
@@ -91,7 +91,7 @@ const listPaths = Object.keys(pageConfig);
 async function loadData() {
   loading.value = true;
   error.value = "";
-  const cfg = pageConfig[route.path] || pageConfig["/playlists"];
+  const cfg = pageConfig[route.path] || pageConfig["/allalbum"];
   pageTitle.value = cfg.title;
   const cacheKey = `discs_${route.path}`;
 
@@ -123,7 +123,7 @@ function viewItem(item) {
     if (item.id) router.push(`/label/${item.id}`);
     else if (item.labelid) router.push(`/label/${item.labelid}`);
   } else {
-    // 专辑类列表（/playlists, /ep, /dig, /purchased, /favorites）
+    // 专辑类列表（/allalbum, /ep, /dig, /purchased, /favorites）
     if (item.id) router.push(`/album/${item.id}`);
     else if (item.labelid) router.push(`/label/${item.labelid}`);
     else if (item.uid) router.push(`/user/${item.uid}`);

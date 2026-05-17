@@ -324,7 +324,7 @@ await save();   // 持久化
 | `/`          | HomePage      | 首页（keep-alive 缓存）     |
 | `/search`    | SearchResults | 搜索结果                    |
 | `/album/:id` | AlbumDetail   | 专辑详情                    |
-| `/playlists` | DiscList      | 全部专辑（keep-alive 缓存） |
+| `/allalbum` | DiscList      | 全部专辑（keep-alive 缓存） |
 | `/ep`        | DiscList      | 单曲 EP                     |
 | `/dig`       | DiscList      | 下载商品                    |
 | `/label`     | DiscList      | 社团列表                    |

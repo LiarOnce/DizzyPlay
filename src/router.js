@@ -22,7 +22,7 @@ const routes = [
     component: () => import("./views/AlbumDetail.vue"),
   },
   {
-    path: "/playlists",
+    path: "/allalbum",
     name: "Playlists",
     component: () => import("./views/DiscList.vue"),
   },
