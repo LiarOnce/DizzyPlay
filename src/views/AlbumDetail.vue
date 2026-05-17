@@ -4,14 +4,11 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import {
   VideoPlay,
-  VideoPause,
   Star,
   StarFilled,
   OfficeBuilding,
-  Share,
   ArrowLeft,
   Loading,
-  Document,
   ArrowUp,
   Opportunity,
 } from "@element-plus/icons-vue";
@@ -31,6 +28,7 @@ import {
 } from "../services/api.js";
 import MetadataExporter from "../components/dialogs/MetadataExporter.vue";
 import DownloadDialog from "../components/dialogs/DownloadDialog.vue";
+import GoToDizzylabWeb from "../components/dialogs/GoToDizzylabWeb.vue";
 import { formatDuration, isTauri } from "../utils/format.js";
 import { globalOffsets } from "../globalvar.js";
 
@@ -49,6 +47,7 @@ const use320kbps = ref(false);
 
 const downloadDialogVisible = ref(false);
 const redeeming = ref(false);
+const purchaseDialogVisible = ref(false);
 
 // 购买者和支持者
 const buyers = ref([]);
@@ -437,20 +436,20 @@ function goToTag(tagName) {
   }
 }
 
-/**
- * 通过外部浏览器打开链接
- */
-function openInBrowser(url) {
-  if (isTauri) {
-    window.__TAURI_INTERNALS__.invoke("plugin:opener|open_url", { url });
-  } else {
-    window.open(url, "_blank");
-  }
-}
-
 let refreshHandler = null;
-
 let settingsHandler = null;
+
+async function handlePurchaseComplete() {
+  console.log("[AlbumDetail] 购买完成，清除缓存并重新加载");
+  const cacheKey = `album_detail_${discId.value}`;
+  try {
+    const { clearCache } = await import("../services/api.js");
+    await clearCache(cacheKey);
+  } catch (e) {
+    console.log("[AlbumDetail] 清除缓存失败，直接重新加载");
+  }
+  loadAlbumDetail();
+}
 
 onMounted(async () => {
   loadAlbumDetail();
@@ -620,12 +619,12 @@ onUnmounted(() => {
             >
               兑换
             </el-button>
-            <!-- 未拥有：跳转到购买页面 -->
+            <!-- 未拥有：引导前往网页端购买 -->
             <el-button
               v-else-if="!album.ihavethis"
               type="danger"
               round
-              @click="openInBrowser('https://www.dizzylab.net/d/' + album.id)"
+              @click="purchaseDialogVisible = true"
             >
               购买
             </el-button>
@@ -785,6 +784,15 @@ onUnmounted(() => {
       v-model="downloadDialogVisible"
       :album-id="album.id"
       :album-title="album.title"
+    />
+
+    <!-- 前往网页端购买对话框 -->
+    <GoToDizzylabWeb
+      v-if="album"
+      v-model="purchaseDialogVisible"
+      :album-url="'https://www.dizzylab.net/d/' + album.id"
+      :album-title="album.title"
+      @purchase-complete="handlePurchaseComplete"
     />
   </div>
 </template>
